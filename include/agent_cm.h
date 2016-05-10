@@ -26,5 +26,7 @@
 #include "agent_cm_library.h"
 
 //  Add your own public definitions here, if you need them
+#define AGENT_CM_TIME   "time"          // time item in aux
+#define AGENT_CM_COUNT  "x-cm-count"    // how many measurements are there
 
 #endif
