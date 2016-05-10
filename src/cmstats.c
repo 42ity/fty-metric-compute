@@ -51,6 +51,7 @@ s_duplicator (const void *self)
 }
 
 
+// find minimum value
 static void
 s_min (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
 {
@@ -58,6 +59,17 @@ s_min (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     uint64_t stat_value = atol (bios_proto_value (stat_msg));
 
     if (bmsg_value < stat_value) {
+        bios_proto_set_value (stat_msg, "%"PRIu64, bmsg_value);
+    }
+}
+
+static void
+s_max (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
+{
+    uint64_t bmsg_value = atol (bios_proto_value ((bios_proto_t*) bmsg));
+    uint64_t stat_value = atol (bios_proto_value (stat_msg));
+
+    if (bmsg_value > stat_value) {
         bios_proto_set_value (stat_msg, "%"PRIu64, bmsg_value);
     }
 }
@@ -126,7 +138,6 @@ cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
 {
     assert (self);
     assert (type);
-    assert (streq (type, "min"));
     assert (bmsg);
 
     int64_t now = zclock_mono ();
@@ -169,6 +180,9 @@ cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
     // if we're inside the interval, simply do the computation
     if (streq (type, "min"))
         s_min (bmsg, stat_msg);
+    else
+    if (streq (type, "max"))
+        s_max (bmsg, stat_msg);
 
     // increase the counter
     bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "%"PRIu64, 
@@ -201,8 +215,11 @@ cmstats_test (bool verbose)
             "UNIT",
             10);
     bios_proto_t *bmsg = bios_proto_decode (&msg);
+    bios_proto_t *stats = NULL;
 
-    bios_proto_t *stats = cmstats_put (self, "min", 1, bmsg);
+    stats = cmstats_put (self, "min", 1, bmsg);
+    assert (!stats);
+    stats = cmstats_put (self, "max", 1, bmsg);
     assert (!stats);
     bios_proto_destroy (&bmsg);
     zclock_sleep (500);
@@ -219,6 +236,8 @@ cmstats_test (bool verbose)
 
     stats = cmstats_put (self, "min", 1, bmsg);
     assert (!stats);
+    stats = cmstats_put (self, "max", 1, bmsg);
+    assert (!stats);
     bios_proto_destroy (&bmsg);
     
     zclock_sleep (510);
@@ -233,11 +252,19 @@ cmstats_test (bool verbose)
             10);
     bmsg = bios_proto_decode (&msg);
 
+    //  1.4 check the minimal value
     stats = cmstats_put (self, "min", 1, bmsg);
     assert (stats);
     bios_proto_print (stats);
-    //  1.4 check the minimal value
     assert (streq (bios_proto_value (stats), "42"));
+    assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
+    bios_proto_destroy (&stats);
+
+    //  1.4 check the maximum value
+    stats = cmstats_put (self, "max", 1, bmsg);
+    assert (stats);
+    bios_proto_print (stats);
+    assert (streq (bios_proto_value (stats), "100"));
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&stats);
 
