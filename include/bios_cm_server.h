@@ -27,13 +27,9 @@ extern "C" {
 #endif
 
 //  @interface
-//  Create a new bios_cm_server
-AGENT_CM_EXPORT bios_cm_server_t *
-    bios_cm_server_new (void);
-
-//  Destroy the bios_cm_server
+//  bios_cm_server actor
 AGENT_CM_EXPORT void
-    bios_cm_server_destroy (bios_cm_server_t **self_p);
+    bios_cm_server (zsock_t *pipe, void *args);
 
 //  Self test of this class
 AGENT_CM_EXPORT void
