@@ -48,6 +48,8 @@ AGENT_CM_EXPORT void
 //
 // Type is supposed to be
 // * min - to find a minimum value inside given interval
+// * max - for find a maximum value
+// * arithmetic_mean - to compute arithmetic mean
 //
 AGENT_CM_EXPORT bios_proto_t*
     cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bmsg);
