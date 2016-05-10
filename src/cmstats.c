@@ -113,13 +113,16 @@ cmstats_print (cmstats_t *self)
 }
 
 //  --------------------------------------------------------------------------
-// Collect the min value for given step - if the interval is over and new metric
+// Compute the $type value for given step - if the interval is over and new metric
 // is already inside the interval, NULL is returned
 // Otherwise new bios_proto_t metric is returned. Caller is responsible for
 // destroying the value.
 //
+// Type is supposed to be
+// * min - to find a minimum value inside given interval
+//
 AGENT_CM_EXPORT bios_proto_t *
-cmstats_min (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bmsg)
+cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bmsg)
 {
     assert (self);
     assert (type);
@@ -199,7 +202,7 @@ cmstats_test (bool verbose)
             10);
     bios_proto_t *bmsg = bios_proto_decode (&msg);
 
-    bios_proto_t *stats = cmstats_min (self, "min", 1, bmsg);
+    bios_proto_t *stats = cmstats_put (self, "min", 1, bmsg);
     assert (!stats);
     bios_proto_destroy (&bmsg);
     zclock_sleep (500);
@@ -214,7 +217,7 @@ cmstats_test (bool verbose)
             10);
     bmsg = bios_proto_decode (&msg);
 
-    stats = cmstats_min (self, "min", 1, bmsg);
+    stats = cmstats_put (self, "min", 1, bmsg);
     assert (!stats);
     bios_proto_destroy (&bmsg);
     
@@ -230,7 +233,7 @@ cmstats_test (bool verbose)
             10);
     bmsg = bios_proto_decode (&msg);
 
-    stats = cmstats_min (self, "min", 1, bmsg);
+    stats = cmstats_put (self, "min", 1, bmsg);
     assert (stats);
     bios_proto_print (stats);
     //  1.4 check the minimal value
