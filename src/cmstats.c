@@ -30,6 +30,8 @@
 
 //  Structure of our class
 
+typedef void (compute_fn) (const bios_proto_t *bmsg, bios_proto_t *stat_msg);
+
 struct _cmstats_t {
     zhashx_t *stats;
 };
@@ -48,6 +50,18 @@ s_duplicator (const void *self)
     return (void*) bios_proto_dup ((bios_proto_t*) self);
 }
 
+
+static void
+s_min (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
+{
+    uint64_t bmsg_value = atol (bios_proto_value ((bios_proto_t*) bmsg));
+    uint64_t stat_value = atol (bios_proto_value (stat_msg));
+
+    if (bmsg_value < stat_value) {
+        bios_proto_set_value (stat_msg, "%"PRIu64, bmsg_value);
+    }
+}
+
 //  --------------------------------------------------------------------------
 //  Create a new cmstats
 
@@ -61,6 +75,7 @@ cmstats_new (void)
     assert (self->stats);
     zhashx_set_destructor (self->stats, s_destructor);
     zhashx_set_duplicator (self->stats, s_duplicator);
+
     return self;
 }
 
@@ -97,25 +112,12 @@ cmstats_print (cmstats_t *self)
     }
 }
 
-static const char*
-s_step2a (uint32_t step)
-{
-    if (step == 1)
-        return "1s";
-    if (step == 15*60)
-        return "15m";
-    return NULL;
-}
-
 //  --------------------------------------------------------------------------
 // Collect the min value for given step - if the interval is over and new metric
 // is already inside the interval, NULL is returned
 // Otherwise new bios_proto_t metric is returned. Caller is responsible for
 // destroying the value.
 //
-// TODO:
-//  1. rewrite s_step2a somehow!!
-//  2. rewrite the actual min implementation as a function pointer
 AGENT_CM_EXPORT bios_proto_t *
 cmstats_min (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bmsg)
 {
@@ -127,10 +129,10 @@ cmstats_min (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
     int64_t now = zclock_mono ();
 
     char *key;
-    asprintf (&key, "%s_%s_%s@%s",
+    asprintf (&key, "%s_%s_%"PRIu32"@%s",
             bios_proto_type (bmsg),
             type,
-            s_step2a (step),
+            step,
             bios_proto_element_src (bmsg));
 
     bios_proto_t *stat_msg = (bios_proto_t*) zhashx_lookup (self->stats, key);
@@ -162,12 +164,9 @@ cmstats_min (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
     }
 
     // if we're inside the interval, simply do the computation
-    uint64_t stat_value = atol (bios_proto_value (stat_msg));
-    uint64_t bmsg_value = atol (bios_proto_value (bmsg));
+    if (streq (type, "min"))
+        s_min (bmsg, stat_msg);
 
-    if (bmsg_value < stat_value) {
-        bios_proto_set_value (stat_msg, "%"PRIu64, bmsg_value);
-    }
     // increase the counter
     bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "%"PRIu64, 
         bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0) + 1
