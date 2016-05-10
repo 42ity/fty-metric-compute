@@ -1,0 +1,69 @@
+#
+#    agent-cm - Provides computation services on METRICS
+#
+#    Copyright (C) 2016 Eaton                                               
+#                                                                           
+#    This program is free software; you can redistribute it and/or modify   
+#    it under the terms of the GNU General Public License as published by   
+#    the Free Software Foundation; either version 2 of the License, or      
+#    (at your option) any later version.                                    
+#                                                                           
+#    This program is distributed in the hope that it will be useful,        
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of         
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          
+#    GNU General Public License for more details.                           
+#                                                                           
+#    You should have received a copy of the GNU General Public License along
+#    with this program; if not, write to the Free Software Foundation, Inc.,
+#    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.            
+
+Source:         agent-cm
+Section:        net
+Priority:       optional
+Maintainer:     agent-cm Developers <bios@eaton.com>
+Standards-Version: 3.9.7
+Build-Depends: debhelper (>= 9),
+    pkg-config,
+    dh-autoreconf,
+    libzmq5-dev,
+    libczmq-dev,
+    libmlm-dev,
+    libbiosproto-dev,
+    dh-autoreconf,
+    systemd,
+    dh-systemd
+
+Package: libagent-cm0
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: agent-cm
+ This package contains shared library for agent-cm: provides computation services on metrics
+
+Package: libagent-cm-dev
+Architecture: any
+Section: libdevel
+Depends:
+    libzmq5-dev,
+    libczmq-dev,
+    libmlm-dev,
+    libbiosproto-dev,
+    libagent-cm0 (= ${binary:Version})
+Description: development files for agent-cm
+ This package contains development files for agent-cm: provides computation services on metrics
+
+Package: agent-cm
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: provides computation services on metrics
+ Main package for agent-cm: provides computation services on metrics
+
+Package: agent-cm-dbg
+Architecture: any
+Section: debug
+Priority: extra
+Depends:
+    agent-cm (= ${binary:Version}),
+    ${misc:Depends}
+Description: debugging symbols for agent-cm
+ This package contains the debugging symbols for agent-cm : provides computation services on metrics.
+

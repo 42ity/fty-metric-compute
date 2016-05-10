@@ -1,0 +1,3 @@
+usr/include/*
+usr/lib/*/libagent_cm.so
+usr/lib/*/pkgconfig/libagent_cm.pc
