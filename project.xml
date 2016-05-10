@@ -1,0 +1,28 @@
+<project
+    name = "agent-cm"
+    description = "Provides computation services on METRICS"
+    script = "zproject.gsl"
+    email = "bios@eaton.com"
+    url = "https://eaton.com/"
+    license = "GPL-2.0+"
+    >
+
+    <target name = "debian" />
+    <target name = "redhat" />
+
+    <include filename = "license.xml" />
+    <version major = "0" minor = "7" patch = "0" />
+
+    <use project = "czmq" />
+    <use project = "malamute" />
+
+    <use project = "biosproto" libname = "libbiosproto" prefix="biosproto"
+        min_major = "0" min_minor = "0" min_patch = "0"
+        repository = "https://stash.mbt.lab.etn.com/BIOS/libbiosproto"
+        test = "bios_proto_test">
+        <use project = "malamute"/>
+    </use>
+
+    <main name = "bios-agent-cm" service="1" />
+
+</project>
