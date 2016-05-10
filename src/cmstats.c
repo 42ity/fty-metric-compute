@@ -74,6 +74,24 @@ s_max (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     }
 }
 
+static void
+s_arithmetic_mean (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
+{
+    uint64_t value = atol (bios_proto_value ((bios_proto_t*) bmsg));
+    uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
+    uint64_t sum = bios_proto_aux_number (stat_msg, AGENT_CM_SUM, 0);
+
+    // 0 means that we have first value
+    if (sum == 0) {
+        sum = atof (bios_proto_value (stat_msg));
+    }
+
+    sum += value;
+
+    bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%"PRIu64, sum);
+    bios_proto_set_value (stat_msg, "%f", ((double)sum) / (count + 1));
+}
+
 //  --------------------------------------------------------------------------
 //  Create a new cmstats
 
@@ -132,6 +150,8 @@ cmstats_print (cmstats_t *self)
 //
 // Type is supposed to be
 // * min - to find a minimum value inside given interval
+// * max - for find a maximum value
+// * arithmetic_mean - to compute arithmetic mean
 //
 AGENT_CM_EXPORT bios_proto_t *
 cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bmsg)
@@ -155,6 +175,7 @@ cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
     if (!stat_msg) {
         bios_proto_aux_insert (bmsg, AGENT_CM_TIME, "%"PRIu64, now);
         bios_proto_aux_insert (bmsg, AGENT_CM_COUNT, "1");
+        bios_proto_aux_insert (bmsg, AGENT_CM_SUM, "0");
         bios_proto_set_ttl (bmsg, 2 * step);
         zhashx_insert (self->stats, key, bmsg);
         zstr_free (&key);
@@ -172,6 +193,7 @@ cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
 
         bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now);
         bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
+        bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");
         bios_proto_set_value (stat_msg, bios_proto_value (bmsg));
 
         return ret;
@@ -183,6 +205,12 @@ cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
     else
     if (streq (type, "max"))
         s_max (bmsg, stat_msg);
+    else
+    if (streq (type, "arithmetic_mean"))
+        s_arithmetic_mean (bmsg, stat_msg);
+    // fail otherwise
+    else
+        assert (false);
 
     // increase the counter
     bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "%"PRIu64, 
@@ -221,6 +249,8 @@ cmstats_test (bool verbose)
     assert (!stats);
     stats = cmstats_put (self, "max", 1, bmsg);
     assert (!stats);
+    stats = cmstats_put (self, "arithmetic_mean", 1, bmsg);
+    assert (!stats);
     bios_proto_destroy (&bmsg);
     zclock_sleep (500);
 
@@ -237,6 +267,8 @@ cmstats_test (bool verbose)
     stats = cmstats_put (self, "min", 1, bmsg);
     assert (!stats);
     stats = cmstats_put (self, "max", 1, bmsg);
+    assert (!stats);
+    stats = cmstats_put (self, "arithmetic_mean", 1, bmsg);
     assert (!stats);
     bios_proto_destroy (&bmsg);
     
@@ -260,11 +292,19 @@ cmstats_test (bool verbose)
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&stats);
 
-    //  1.4 check the maximum value
+    //  1.5 check the maximum value
     stats = cmstats_put (self, "max", 1, bmsg);
     assert (stats);
     bios_proto_print (stats);
     assert (streq (bios_proto_value (stats), "100"));
+    assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
+    bios_proto_destroy (&stats);
+
+    //  1.6 check the maximum value
+    stats = cmstats_put (self, "arithmetic_mean", 1, bmsg);
+    assert (stats);
+    bios_proto_print (stats);
+    assert (atof (bios_proto_value (stats)) == (100.0+42) / 2);
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&stats);
 

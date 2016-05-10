@@ -28,5 +28,6 @@
 //  Add your own public definitions here, if you need them
 #define AGENT_CM_TIME   "time"          // time item in aux
 #define AGENT_CM_COUNT  "x-cm-count"    // how many measurements are there
+#define AGENT_CM_SUM    "x-cm-sum"      // sum of the values
 
 #endif
