@@ -1,0 +1,25 @@
+Name(7)
+=======
+
+
+NAME
+----
+agent_cm - Provides computation services on METRICS
+
+
+SYNOPSIS
+--------
+----
+#include <agent_cm.h>
+
+cc ['flags'] 'files' -lagent_cm ['libraries']
+----
+
+
+DESCRIPTION
+-----------
+
+Classes
+~~~~~~~
+
+Something.

@@ -1,0 +1,11 @@
+[Unit]
+Description=bios-agent-cm service
+After=network.target
+
+[Service]
+Type=simple
+Environment="prefix=@prefix@"
+ExecStart=@prefix@/bin/bios-agent-cm @sysconfdir@/@PACKAGE@/bios-agent-cm.cfg
+
+[Install]
+WantedBy=multi-user.target
