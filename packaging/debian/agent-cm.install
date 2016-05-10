@@ -1,0 +1,2 @@
+usr/bin/bios-agent-cm
+usr/lib/systemd/system/bios-agent-cm*.service
