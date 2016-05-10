@@ -116,7 +116,6 @@ s_step2a (uint32_t step)
 // TODO:
 //  1. rewrite s_step2a somehow!!
 //  2. rewrite the actual min implementation as a function pointer
-//  3. put magic strings somewhere else
 AGENT_CM_EXPORT bios_proto_t *
 cmstats_min (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bmsg)
 {
@@ -138,8 +137,8 @@ cmstats_min (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
 
     // handle the first insert
     if (!stat_msg) {
-        bios_proto_aux_insert (bmsg, "time", "%"PRIu64, now);
-        bios_proto_aux_insert (bmsg, "x-cm-count", "1");
+        bios_proto_aux_insert (bmsg, AGENT_CM_TIME, "%"PRIu64, now);
+        bios_proto_aux_insert (bmsg, AGENT_CM_COUNT, "1");
         //bios_proto_set_ttl (bmsg, 2 * step);
         zhashx_insert (self->stats, key, bmsg);
         zstr_free (&key);
@@ -149,14 +148,14 @@ cmstats_min (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
 
     // there is already some value
     // so check if it's not already older than we need
-    uint64_t stat_now = bios_proto_aux_number (stat_msg, "time", 0);
+    uint64_t stat_now = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
 
     // it is, return the stat value and "restart" the computation
     if (now - stat_now >= step * 1000) {
         bios_proto_t *ret = bios_proto_dup (stat_msg);
 
-        bios_proto_aux_insert (stat_msg, "time", "%"PRIu64, now);
-        bios_proto_aux_insert (stat_msg, "x-cm-count", "1");
+        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now);
+        bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         bios_proto_set_value (stat_msg, bios_proto_value (bmsg));
 
         return ret;
@@ -170,8 +169,8 @@ cmstats_min (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
         bios_proto_set_value (stat_msg, "%"PRIu64, bmsg_value);
     }
     // increase the counter
-    bios_proto_aux_insert (stat_msg, "x-cm-count", "%"PRIu64, 
-        bios_proto_aux_number (stat_msg, "x-cm-count", 0) + 1
+    bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "%"PRIu64, 
+        bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0) + 1
     );
 
     return NULL;
@@ -237,7 +236,7 @@ cmstats_test (bool verbose)
     bios_proto_print (stats);
     //  1.4 check the minimal value
     assert (streq (bios_proto_value (stats), "42"));
-    assert (streq (bios_proto_aux_string (stats, "x-cm-count", NULL), "2"));
+    assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&stats);
 
     cmstats_destroy (&self);
