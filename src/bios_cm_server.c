@@ -86,6 +86,7 @@ bios_cm_server (zsock_t *pipe, void *args)
 
                     zmsg_t *msg = bios_proto_encode (&stat_msg);
                     mlm_client_send (client, subject, &msg);
+                    zstr_free (&subject);
                 }
             }
         }
