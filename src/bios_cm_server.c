@@ -363,8 +363,11 @@ bios_cm_server_test (bool verbose)
         bios_proto_t *bmsg = NULL;
         msg = mlm_client_recv (consumer);
         bmsg = bios_proto_decode (&msg);
-        zsys_debug ("subject=%s", mlm_client_subject (consumer));
-        bios_proto_print (bmsg);
+
+        if (verbose) {
+            zsys_debug ("subject=%s", mlm_client_subject (consumer));
+            bios_proto_print (bmsg);
+        }
 
         const char *type = bios_proto_aux_string (bmsg, AGENT_CM_TYPE, "");
         const char *step = bios_proto_aux_string (bmsg, AGENT_CM_STEP, "");

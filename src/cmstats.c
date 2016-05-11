@@ -296,7 +296,8 @@ cmstats_test (bool verbose)
     //  1.4 check the minimal value
     stats = cmstats_put (self, "min", 1, bmsg);
     assert (stats);
-    bios_proto_print (stats);
+    if (verbose)
+        bios_proto_print (stats);
     assert (streq (bios_proto_value (stats), "42"));
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&stats);
@@ -304,7 +305,8 @@ cmstats_test (bool verbose)
     //  1.5 check the maximum value
     stats = cmstats_put (self, "max", 1, bmsg);
     assert (stats);
-    bios_proto_print (stats);
+    if (verbose)
+        bios_proto_print (stats);
     assert (streq (bios_proto_value (stats), "100"));
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&stats);
@@ -312,7 +314,8 @@ cmstats_test (bool verbose)
     //  1.6 check the maximum value
     stats = cmstats_put (self, "arithmetic_mean", 1, bmsg);
     assert (stats);
-    bios_proto_print (stats);
+    if (verbose)
+        bios_proto_print (stats);
     assert (atof (bios_proto_value (stats)) == (100.0+42) / 2);
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&stats);
