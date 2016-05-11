@@ -39,9 +39,7 @@ struct _cmstats_t {
 static void
 s_destructor (void **self_p)
 {
-    if (*self_p) {
-        bios_proto_destroy ((bios_proto_t**) self_p);
-    }
+    bios_proto_destroy ((bios_proto_t**) self_p);
 }
 
 static void*
@@ -318,6 +316,7 @@ cmstats_test (bool verbose)
         bios_proto_print (stats);
     assert (atof (bios_proto_value (stats)) == (100.0+42) / 2);
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
+    bios_proto_destroy (&bmsg);
     bios_proto_destroy (&stats);
 
     cmstats_destroy (&self);
