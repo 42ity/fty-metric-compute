@@ -111,8 +111,11 @@ bios_cm_server (zsock_t *pipe, void *args)
             if (verbose)
                 zsys_debug ("%s:\tAPI command=%s", name, command);
 
-            if (streq (command, "$TERM"))
+            if (streq (command, "$TERM")) {
+                zstr_free (&command);
+                zmsg_destroy (&msg);
                 break;
+            }
             else
             if (streq (command, "VERBOSE"))
                 verbose=true;
@@ -319,7 +322,6 @@ bios_cm_server_test (bool verbose)
 
         bios_proto_destroy (&bmsg);
     }
-
     // send some 1s min/max to differentiate it later
     zclock_sleep (2500);
     msg = bios_proto_encode_metric (
