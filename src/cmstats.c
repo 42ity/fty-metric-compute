@@ -177,6 +177,7 @@ cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
         bios_proto_aux_insert (bmsg, AGENT_CM_COUNT, "1");
         bios_proto_aux_insert (bmsg, AGENT_CM_SUM, "0");
         bios_proto_aux_insert (bmsg, AGENT_CM_TYPE, "%s", type);
+        bios_proto_aux_insert (bmsg, AGENT_CM_STEP, "%"PRIu32, step);
         bios_proto_set_ttl (bmsg, 2 * step);
         zhashx_insert (self->stats, key, bmsg);
         zstr_free (&key);
@@ -195,6 +196,7 @@ cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
         bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now);
         bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");
+
         bios_proto_set_value (stat_msg, bios_proto_value (bmsg));
 
         return ret;
