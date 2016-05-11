@@ -161,6 +161,12 @@ cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
     assert (bmsg);
 
     int64_t now = zclock_mono ();
+    // round the now to earliest time start
+    // ie for 12:16:29 / step 15*60 return 12:15:00
+    //    for 12:16:29 / step 60*60 return 12:00:00
+    //    ... etc
+    // works well for any value of step
+    now = now - (now % step);
 
     char *key;
     asprintf (&key, "%s_%s_%"PRIu32"@%s",
