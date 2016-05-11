@@ -120,6 +120,24 @@ bios_cm_server (zsock_t *pipe, void *args)
             if (streq (command, "VERBOSE"))
                 verbose=true;
             else
+            if (streq (command, "PRODUCER")) {
+                char* stream = zmsg_popstr (msg);
+                int r = mlm_client_set_producer (client, stream);
+                if (r == -1)
+                    zsys_error ("%s: can't set producer on stream '%s'", name, stream);
+                zstr_free (&stream);
+            }
+            else
+            if (streq (command, "CONSUMER")) {
+                char* stream = zmsg_popstr (msg);
+                char* pattern = zmsg_popstr (msg);
+                int rv = mlm_client_set_consumer (client, stream, pattern);
+                if (rv == -1)
+                    zsys_error ("%s: can't set consumer on stream '%s', '%s'", name, stream, pattern);
+                zstr_free (&pattern);
+                zstr_free (&stream);
+            }
+            else
             if (streq (command, "CONNECT"))
             {
                 char *endpoint = zmsg_popstr (msg);
@@ -131,9 +149,6 @@ bios_cm_server (zsock_t *pipe, void *args)
                     int r = mlm_client_connect (client, endpoint, 5000, client_name);
                     if (r == -1)
                         zsys_error ("%s:\tConnection to endpoint '%' failed", name);
-                    //TODO: move to *separate* actor command
-                    mlm_client_set_consumer (client, BIOS_PROTO_STREAM_METRICS, ".*");
-                    mlm_client_set_producer (client, BIOS_PROTO_STREAM_METRICS);
 
                 }
                 zstr_free (&client_name);
@@ -262,6 +277,8 @@ bios_cm_server_test (bool verbose)
     zstr_sendx (cm_server, "TYPES", "min", "max", NULL);
     zstr_sendx (cm_server, "STEPS", "1s", "5s", NULL);
     zstr_sendx (cm_server, "CONNECT", endpoint, "bios-cm-server", NULL);
+    zstr_sendx (cm_server, "PRODUCER", BIOS_PROTO_STREAM_METRICS, NULL);
+    zstr_sendx (cm_server, "CONSUMER", BIOS_PROTO_STREAM_METRICS, ".*", NULL);
     zclock_sleep (500);
 
     zmsg_t *msg = bios_proto_encode_metric (
