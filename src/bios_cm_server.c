@@ -110,7 +110,18 @@ bios_cm_server_test (bool verbose)
     printf (" * bios_cm_server: ");
 
     //  @selftest
-    //  TODO: testing
+    
+    static const char *endpoint = "inproc://cm-server-test";
+
+    zactor_t *server = zactor_new (mlm_server, "Malamute");
+    if (verbose)
+        zstr_sendx (server, "VERBOSE", NULL);
+    zstr_sendx (server, "BIND", endpoint, NULL);
+
+    zactor_t *cm_server = zactor_new (bios_cm_server, "bios-cm-server");
+
+    zactor_destroy (&cm_server);
+    zactor_destroy (&server);
     //  @end
     printf ("OK\n");
 }
