@@ -36,6 +36,7 @@ typedef struct _cm_t {
     cmsteps_t *steps; // info about steps
     zlist_t *types; // info about types to compute
     mlm_client_t *client; // malamute client
+    char *filename; // state file
 } cm_t;
 
 cm_t*
@@ -79,6 +80,7 @@ cm_destroy (cm_t **self_p)
         cmsteps_destroy (&self->steps);
         cmstats_destroy (&self->stats);
         zstr_free (&self->name);
+        zstr_free (&self->filename);
 
         // free structure itself
         free (self);
@@ -130,6 +132,27 @@ bios_cm_server (zsock_t *pipe, void *args)
             else
             if (streq (command, "VERBOSE"))
                 self->verbose=true;
+            else
+            if (streq (command, "DIR")) {
+                char* dir = zmsg_popstr (msg);
+                zfile_t *f = zfile_new (dir, "state.zpl");
+                self->filename = strdup (zfile_filename (f, NULL));
+
+                if (zfile_exists (self->filename)) {
+                    cmstats_t *foo = cmstats_load (self->filename);
+                    if (!foo)
+                        zsys_error ("%s:\tFailed to load %s", self->name, self->filename);
+                    else {
+                        if (self->verbose)
+                            zsys_info ("%s:\tLoaded %s", self->name, self->filename);
+                        cmstats_destroy (&self->stats);
+                        self->stats = foo;
+                    }
+                }
+
+                zfile_destroy (&f);
+                zstr_free (&dir);
+            }
             else
             if (streq (command, "PRODUCER")) {
                 char* stream = zmsg_popstr (msg);
@@ -235,6 +258,15 @@ bios_cm_server (zsock_t *pipe, void *args)
 
     }
 
+    if (self->filename) {
+        int r = cmstats_save (self->stats, self->filename);
+        if (r == -1)
+            zsys_error ("%s:\t failed to save %s: %s", self->name, self->filename, strerror (errno));
+        else
+            if (self->verbose)
+                zsys_info ("%s:\t'%s' saved succesfully", self->name, self->filename);
+    }
+
     cm_destroy (&self);
     zpoller_destroy (&poller);
 }
@@ -249,6 +281,7 @@ bios_cm_server_test (bool verbose)
     printf (" * bios_cm_server: ");
 
     //  @selftest
+    unlink ("src/state.zpl");
 
     static const char *endpoint = "inproc://cm-server-test";
 
@@ -271,6 +304,7 @@ bios_cm_server_test (bool verbose)
         zstr_sendx (cm_server, "VERBOSE", NULL);
     zstr_sendx (cm_server, "TYPES", "min", "max", NULL);
     zstr_sendx (cm_server, "STEPS", "1s", "5s", NULL);
+    zstr_sendx (cm_server, "DIR", "src", NULL);
     zstr_sendx (cm_server, "CONNECT", endpoint, "bios-cm-server", NULL);
     zstr_sendx (cm_server, "PRODUCER", BIOS_PROTO_STREAM_METRICS, NULL);
     zstr_sendx (cm_server, "CONSUMER", BIOS_PROTO_STREAM_METRICS, ".*", NULL);
@@ -407,7 +441,6 @@ bios_cm_server_test (bool verbose)
     // TODO: can't it be better? like while (zsock_can_read (mlm_client_msgpipe ( ...???
     for (int i = 0; i != 6; i++)
     {
-        zsys_debug ("i=%d", i);
         msg = mlm_client_recv (consumer);
         zmsg_destroy (&msg);
     }
@@ -415,6 +448,9 @@ bios_cm_server_test (bool verbose)
     mlm_client_destroy (&consumer);
     mlm_client_destroy (&producer);
     zactor_destroy (&server);
+
+    assert (zfile_exists ("src/state.zpl"));
+    unlink ("src/state.zpl");
     //  @end
     printf ("OK\n");
 }

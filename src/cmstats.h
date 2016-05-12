@@ -58,6 +58,14 @@ AGENT_CM_EXPORT bios_proto_t*
 AGENT_CM_EXPORT void
     cmstats_poll (cmstats_t *self, mlm_client_t *client, int64_t now);
 
+//  Save the cmstats to filename, return -1 if fail
+AGENT_CM_EXPORT int
+    cmstats_save (cmstats_t *self, const char *filename);
+
+//  Load the cmstats from filename
+AGENT_CM_EXPORT cmstats_t *
+    cmstats_load (const char *filename);
+
 //  Self test of this class
 AGENT_CM_EXPORT void
     cmstats_test (bool verbose);
