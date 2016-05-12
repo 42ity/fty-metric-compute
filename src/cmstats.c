@@ -39,9 +39,7 @@ struct _cmstats_t {
 static void
 s_destructor (void **self_p)
 {
-    if (*self_p) {
-        bios_proto_destroy ((bios_proto_t**) self_p);
-    }
+    bios_proto_destroy ((bios_proto_t**) self_p);
 }
 
 static void*
@@ -161,6 +159,12 @@ cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
     assert (bmsg);
 
     int64_t now = zclock_mono ();
+    // round the now to earliest time start
+    // ie for 12:16:29 / step 15*60 return 12:15:00
+    //    for 12:16:29 / step 60*60 return 12:00:00
+    //    ... etc
+    // works well for any value of step
+    now = now - (now % step);
 
     char *key;
     asprintf (&key, "%s_%s_%"PRIu32"@%s",
@@ -176,6 +180,8 @@ cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
         bios_proto_aux_insert (bmsg, AGENT_CM_TIME, "%"PRIu64, now);
         bios_proto_aux_insert (bmsg, AGENT_CM_COUNT, "1");
         bios_proto_aux_insert (bmsg, AGENT_CM_SUM, "0");
+        bios_proto_aux_insert (bmsg, AGENT_CM_TYPE, "%s", type);
+        bios_proto_aux_insert (bmsg, AGENT_CM_STEP, "%"PRIu32, step);
         bios_proto_set_ttl (bmsg, 2 * step);
         zhashx_insert (self->stats, key, bmsg);
         zstr_free (&key);
@@ -194,6 +200,7 @@ cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
         bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now);
         bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");
+
         bios_proto_set_value (stat_msg, bios_proto_value (bmsg));
 
         return ret;
@@ -221,6 +228,87 @@ cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
 }
 
 //  --------------------------------------------------------------------------
+//  Load the cmstats from filename
+int
+cmstats_save (cmstats_t *self, const char *filename)
+{
+    assert (self);
+
+    zconfig_t *root = zconfig_new ("cmstats", NULL);
+    for (bios_proto_t *bmsg = (bios_proto_t*) zhashx_first (self->stats);
+                       bmsg != NULL;
+                       bmsg = (bios_proto_t*) zhashx_next (self->stats))
+    {
+        const char* key = (const char*) zhashx_cursor (self->stats);
+
+        zconfig_t *item = zconfig_new (key, root);
+        zconfig_put (item, "type", bios_proto_type (bmsg));
+        zconfig_put (item, "element_src", bios_proto_element_src (bmsg));
+        zconfig_put (item, "value", bios_proto_value (bmsg));
+        zconfig_put (item, "unit", bios_proto_unit (bmsg));
+        zconfig_putf (item, "ttl", "%"PRIu32, bios_proto_ttl (bmsg));
+
+        zhash_t *aux = bios_proto_aux (bmsg);
+        for (const char *aux_value = (const char*) zhash_first (aux);
+                         aux_value != NULL;
+                         aux_value = (const char*) zhash_next (aux))
+        {
+            const char *aux_key = (const char*) zhash_cursor (aux);
+            char *item_key;
+            asprintf (&item_key, "aux.%s", aux_key);
+            zconfig_put (item, item_key, aux_value);
+            zstr_free (&item_key);
+        }
+
+    }
+
+    int r = zconfig_save (root, filename);
+    zconfig_destroy (&root);
+    return r;
+}
+
+cmstats_t *
+cmstats_load (const char *filename)
+{
+    zconfig_t *root = zconfig_load (filename);
+
+    if (!root)
+        return NULL;
+
+    cmstats_t *self = cmstats_new ();
+    zconfig_t *key_config = zconfig_child (root);
+    for (; key_config != NULL; key_config = zconfig_next (key_config))
+    {
+        const char *key = zconfig_name (key_config);
+
+        // 1. create bmsg
+        bios_proto_t *bmsg = bios_proto_new (BIOS_PROTO_METRIC);
+        bios_proto_set_type (bmsg, zconfig_get (key_config, "type", ""));
+        bios_proto_set_element_src (bmsg, zconfig_get (key_config, "element_src", ""));
+        bios_proto_set_value (bmsg, zconfig_get (key_config, "value", ""));
+        bios_proto_set_unit (bmsg, zconfig_get (key_config, "unit", ""));
+        bios_proto_set_ttl (bmsg, atoi (zconfig_get (key_config, "unit", "0")));
+
+        // 2. put aux things
+        zconfig_t *bmsg_config = zconfig_child (key_config);
+        for (; bmsg_config != NULL; bmsg_config = zconfig_next (bmsg_config))
+        {
+            const char *bmsg_key = zconfig_name (bmsg_config);
+            if (strncmp (bmsg_key, "aux.", 4) != 0)
+                continue;
+
+            bios_proto_aux_insert (bmsg, (bmsg_key+4), zconfig_value (bmsg_config));
+        }
+
+        zhashx_update (self->stats, key, bmsg);
+        bios_proto_destroy (&bmsg);
+    }
+
+    zconfig_destroy (&root);
+    return self;
+}
+
+//  --------------------------------------------------------------------------
 //  Self test of this class
 
 void
@@ -230,6 +318,10 @@ cmstats_test (bool verbose)
 
     //  @selftest
     //  Simple create/destroy test
+
+    static const char *file = "src/cmstats.zpl";
+    unlink (file);
+
     cmstats_t *self = cmstats_new ();
     assert (self);
 
@@ -287,7 +379,8 @@ cmstats_test (bool verbose)
     //  1.4 check the minimal value
     stats = cmstats_put (self, "min", 1, bmsg);
     assert (stats);
-    bios_proto_print (stats);
+    if (verbose)
+        bios_proto_print (stats);
     assert (streq (bios_proto_value (stats), "42"));
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&stats);
@@ -295,7 +388,8 @@ cmstats_test (bool verbose)
     //  1.5 check the maximum value
     stats = cmstats_put (self, "max", 1, bmsg);
     assert (stats);
-    bios_proto_print (stats);
+    if (verbose)
+        bios_proto_print (stats);
     assert (streq (bios_proto_value (stats), "100"));
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&stats);
@@ -303,12 +397,24 @@ cmstats_test (bool verbose)
     //  1.6 check the maximum value
     stats = cmstats_put (self, "arithmetic_mean", 1, bmsg);
     assert (stats);
-    bios_proto_print (stats);
+    if (verbose)
+        bios_proto_print (stats);
     assert (atof (bios_proto_value (stats)) == (100.0+42) / 2);
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
+    bios_proto_destroy (&bmsg);
     bios_proto_destroy (&stats);
 
+    cmstats_save (self, "src/cmstats.zpl");
     cmstats_destroy (&self);
+    self = cmstats_load ("src/cmstats.zpl");
+
+    // TRIVIA: extend the testing of self->stats
+    //         hint is - uncomment the print :)
+    //cmstats_print (self);
+    assert (zhashx_lookup (self->stats, "TYPE_max_1@ELEMENT_SRC"));
+
+    cmstats_destroy (&self);
+    unlink (file);
     //  @end
     printf ("OK\n");
 }

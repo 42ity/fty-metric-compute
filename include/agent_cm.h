@@ -29,5 +29,7 @@
 #define AGENT_CM_TIME   "time"          // time item in aux
 #define AGENT_CM_COUNT  "x-cm-count"    // how many measurements are there
 #define AGENT_CM_SUM    "x-cm-sum"      // sum of the values
+#define AGENT_CM_TYPE   "x-cm-type"     // type of computation (min/max/arithmetic_mean)
+#define AGENT_CM_STEP   "x-cm-step"     // computation step (in seconds)
 
 #endif
