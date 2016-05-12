@@ -28,37 +28,95 @@
 
 #include "agent_cm_classes.h"
 
+// TODO: move to class sometime ???
+typedef struct _cm_t {
+    bool verbose; // is server verbose or not
+    char *name;   // server name
+    cmstats_t *stats; // statistics (min, max, averages, ...)
+    cmsteps_t *steps; // info about steps
+    zlist_t *types; // info about types to compute
+    mlm_client_t *client; // malamute client
+} cm_t;
+
+cm_t*
+cm_new (const char* name)
+{
+    assert (name);
+    cm_t *self = (cm_t*) zmalloc (sizeof (cm_t));
+    assert (self);
+
+    self->verbose = false;
+
+    self->name = strdup (name);
+    assert (self->name);
+
+    self->stats = cmstats_new ();
+    assert (self->stats);
+
+    self->steps = cmsteps_new ();
+    assert (self->steps);
+
+    self->types = zlist_new ();
+    assert (self->types);
+    zlist_autofree (self->types);
+
+    self->client = mlm_client_new ();
+    assert (self->client);
+
+    return self;
+}
+
+void
+cm_destroy (cm_t **self_p)
+{
+    if (*self_p)
+    {
+        cm_t *self = *self_p;
+
+        // free structure items
+        mlm_client_destroy (&self->client);
+        zlist_destroy (&self->types);
+        cmsteps_destroy (&self->steps);
+        cmstats_destroy (&self->stats);
+        zstr_free (&self->name);
+
+        // free structure itself
+        free (self);
+        *self_p = NULL;
+    }
+}
+
+
 //  --------------------------------------------------------------------------
 //  bios_cm_server actor
 
 void
 bios_cm_server (zsock_t *pipe, void *args)
 {
-    bool verbose = false;
-    char *name = strdup (args);
-    cmstats_t *stats = cmstats_new ();
+    cm_t *self = cm_new ((const char*) args);
 
-    cmsteps_t *steps = cmsteps_new ();
-    zlist_t *types = zlist_new ();
-    zlist_autofree (types);
-
-    mlm_client_t *client = mlm_client_new ();
-    zpoller_t *poller = zpoller_new (pipe, mlm_client_msgpipe (client), NULL);
-
+    zpoller_t *poller = zpoller_new (pipe, mlm_client_msgpipe (self->client), NULL);
     zsock_signal (pipe, 0);
     while (!zsys_interrupted)
     {
-        void *which = zpoller_wait (poller, -1);
+        int interval = -1;
+        if (cmsteps_gcd (self->steps) != 0) {
+            int64_t now = zclock_mono ();
+            // find next nearest interval to compute some average
+            interval = now - (now % -cmsteps_gcd (self->steps));
+        }
 
-        if (!which)
+        void *which = zpoller_wait (poller, interval);
+
+        if (!which && zpoller_terminated (poller))
             break;
 
         if (which == pipe)
         {
             zmsg_t *msg = zmsg_recv (pipe);
             char *command = zmsg_popstr (msg);
-            if (verbose)
-                zsys_debug ("%s:\tAPI command=%s", name, command);
+            if (self->verbose)
+                zsys_debug ("%s:\tAPI command=%s", self->name, command);
 
             if (streq (command, "$TERM")) {
                 zstr_free (&command);
@@ -67,22 +125,22 @@ bios_cm_server (zsock_t *pipe, void *args)
             }
             else
             if (streq (command, "VERBOSE"))
-                verbose=true;
+                self->verbose=true;
             else
             if (streq (command, "PRODUCER")) {
                 char* stream = zmsg_popstr (msg);
-                int r = mlm_client_set_producer (client, stream);
+                int r = mlm_client_set_producer (self->client, stream);
                 if (r == -1)
-                    zsys_error ("%s: can't set producer on stream '%s'", name, stream);
+                    zsys_error ("%s: can't set producer on stream '%s'", self->name, stream);
                 zstr_free (&stream);
             }
             else
             if (streq (command, "CONSUMER")) {
                 char* stream = zmsg_popstr (msg);
                 char* pattern = zmsg_popstr (msg);
-                int rv = mlm_client_set_consumer (client, stream, pattern);
+                int rv = mlm_client_set_consumer (self->client, stream, pattern);
                 if (rv == -1)
-                    zsys_error ("%s: can't set consumer on stream '%s', '%s'", name, stream, pattern);
+                    zsys_error ("%s: can't set consumer on stream '%s', '%s'", self->name, stream, pattern);
                 zstr_free (&pattern);
                 zstr_free (&stream);
             }
@@ -92,12 +150,12 @@ bios_cm_server (zsock_t *pipe, void *args)
                 char *endpoint = zmsg_popstr (msg);
                 char *client_name = zmsg_popstr (msg);
                 if (!endpoint || !client_name)
-                    zsys_error ("%s:\tmissing endpoint or name", name);
+                    zsys_error ("%s:\tmissing endpoint or name", self->name);
                 else
                 {
-                    int r = mlm_client_connect (client, endpoint, 5000, client_name);
+                    int r = mlm_client_connect (self->client, endpoint, 5000, client_name);
                     if (r == -1)
-                        zsys_error ("%s:\tConnection to endpoint '%' failed", name);
+                        zsys_error ("%s:\tConnection to endpoint '%' failed", self->name);
 
                 }
                 zstr_free (&client_name);
@@ -111,9 +169,9 @@ bios_cm_server (zsock_t *pipe, void *args)
                     char *foo = zmsg_popstr (msg);
                     if (!foo)
                         break;
-                    int r = cmsteps_put (steps, foo);
+                    int r = cmsteps_put (self->steps, foo);
                     if (r == -1)
-                        zsys_info ("%s:\tignoring unrecognized step='%s'", name, foo);
+                        zsys_info ("%s:\tignoring unrecognized step='%s'", self->name, foo);
                     zstr_free (&foo);
                 }
             }
@@ -125,35 +183,35 @@ bios_cm_server (zsock_t *pipe, void *args)
                     char *foo = zmsg_popstr (msg);
                     if (!foo)
                         break;
-                    zlist_append (types, foo);
+                    zlist_append (self->types, foo);
                     zstr_free (&foo);
                 }
             }
             else
-                zsys_warning ("%s:\tunkown API command=%s, ignoring", name, command);
+                zsys_warning ("%s:\tunkown API command=%s, ignoring", self->name, command);
 
             zstr_free (&command);
             zmsg_destroy (&msg);
             continue;
         }
 
-        zmsg_t *msg = mlm_client_recv (client);
+        zmsg_t *msg = mlm_client_recv (self->client);
         bios_proto_t *bmsg = bios_proto_decode (&msg);
 
         //TODO: need to know the list of types and or devices to compute
         if (!streq (bios_proto_type (bmsg), "realpower.default"))
             continue;
 
-        for (uint32_t *step_p = cmsteps_first (steps);
+        for (uint32_t *step_p = cmsteps_first (self->steps);
                        step_p != NULL;
-                       step_p = cmsteps_next (steps))
+                       step_p = cmsteps_next (self->steps))
         {
-            for (const char *type = (const char*) zlist_first (types);
+            for (const char *type = (const char*) zlist_first (self->types);
                              type != NULL;
-                             type = (const char*) zlist_next (types))
+                             type = (const char*) zlist_next (self->types))
             {
-                const char *step = (const char*) cmsteps_cursor (steps);
-                bios_proto_t *stat_msg = cmstats_put (stats, type, *step_p, bmsg);
+                const char *step = (const char*) cmsteps_cursor (self->steps);
+                bios_proto_t *stat_msg = cmstats_put (self->stats, type, *step_p, bmsg);
                 if (stat_msg) {
                     char *subject;
                     asprintf (&subject, "%s_%s_%s@%s",
@@ -163,7 +221,7 @@ bios_cm_server (zsock_t *pipe, void *args)
                             bios_proto_element_src (stat_msg));
 
                     zmsg_t *msg = bios_proto_encode (&stat_msg);
-                    mlm_client_send (client, subject, &msg);
+                    mlm_client_send (self->client, subject, &msg);
                     zstr_free (&subject);
                 }
             }
@@ -173,12 +231,8 @@ bios_cm_server (zsock_t *pipe, void *args)
 
     }
 
-    zlist_destroy (&types);
-    cmsteps_destroy (&steps);
+    cm_destroy (&self);
     zpoller_destroy (&poller);
-    mlm_client_destroy (&client);
-    cmstats_destroy (&stats);
-    zstr_free (&name);
 }
 
 
