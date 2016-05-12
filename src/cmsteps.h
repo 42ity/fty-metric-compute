@@ -41,9 +41,12 @@ AGENT_CM_EXPORT void
 //      "42" -> 42
 //      "42s" -> 42
 //      "42m" -> 2520
-
 AGENT_CM_EXPORT int64_t
     cmsteps_toint (const char *step);
+
+//  Return greatest common divisor of steps - 0 means no steps are in a list
+AGENT_CM_EXPORT uint32_t
+    cmsteps_gcd (cmsteps_t *self);
 
 //  Put new step to the list, return -1 if fail (possibly wrong step)
 AGENT_CM_EXPORT int

@@ -32,6 +32,7 @@
 
 struct _cmsteps_t {
     zhashx_t *steps;
+    uint32_t gcd;
 };
 
 static void s_desctructor (void **item_p)
@@ -98,7 +99,54 @@ cmsteps_toint (const char *step)
         return -1;
 
     return ret;
+}
 
+// http://www.math.wustl.edu/~victor/mfmm/compaa/gcd.c
+static uint32_t
+s_gcd (uint32_t a, uint32_t b)
+{
+    uint32_t c;
+    while (a != 0) {
+        c = a;
+        a = b % a;
+        b = c;
+    }
+    return b;
+}
+
+// compute greatest common divisor from steps
+static uint32_t
+s_cmsteps_gcd (cmsteps_t *self)
+{
+    assert (self);
+    uint32_t gcd;
+
+    if (zhashx_size (self->steps) == 0)
+        gcd = 0;
+    else
+    if (zhashx_size (self->steps) == 1)
+        gcd = *cmsteps_first (self);
+    else {
+        gcd = *cmsteps_first (self);
+        for (uint32_t *step_p = cmsteps_first (self);
+                       step_p != NULL;
+                       step_p = cmsteps_next (self))
+        {
+            gcd = s_gcd (gcd, *step_p);
+        }
+    }
+
+    return gcd;
+}
+
+//  --------------------------------------------------------------------------
+//  Return greatest common divisor of steps - 0 means no steps are in a list
+
+uint32_t
+cmsteps_gcd (cmsteps_t *self)
+{
+    assert (self);
+    return self->gcd;
 }
 
 //  --------------------------------------------------------------------------
@@ -116,6 +164,8 @@ cmsteps_put (cmsteps_t *self, const char* step)
     uint32_t *n = (uint32_t*) malloc (sizeof (uint32_t));
     *n = r;
     zhashx_update (self->steps, step, n);
+
+    self->gcd = s_cmsteps_gcd (self);
 
     return 0;
 }
@@ -189,12 +239,15 @@ cmsteps_test (bool verbose)
     //  @selftest
     //  Simple create/destroy test
     cmsteps_t *self = cmsteps_new ();
+    assert (cmsteps_gcd (self) == 0);
 
-    cmsteps_put (self, "1s");
     cmsteps_put (self, "5h");
+    assert (cmsteps_gcd (self) == 5*60*60);
+    cmsteps_put (self, "5s");
+    assert (cmsteps_gcd (self) == 5);
 
-    int64_t r = cmsteps_get (self, "1s");
-    assert (r == 1);
+    int64_t r = cmsteps_get (self, "5s");
+    assert (r == 5);
     r = cmsteps_get (self, "5h");
     assert (r == 5*60*60);
     r = cmsteps_get (self, "5X");
