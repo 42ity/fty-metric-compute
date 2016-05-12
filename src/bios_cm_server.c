@@ -86,7 +86,6 @@ cm_destroy (cm_t **self_p)
     }
 }
 
-
 //  --------------------------------------------------------------------------
 //  bios_cm_server actor
 
@@ -110,6 +109,11 @@ bios_cm_server (zsock_t *pipe, void *args)
 
         if (!which && zpoller_terminated (poller))
             break;
+
+        if (!which && zpoller_expired (poller)) {
+            cmstats_poll (self->stats, self->client, zclock_mono ());
+            continue;
+        }
 
         if (which == pipe)
         {
@@ -211,7 +215,7 @@ bios_cm_server (zsock_t *pipe, void *args)
                              type = (const char*) zlist_next (self->types))
             {
                 const char *step = (const char*) cmsteps_cursor (self->steps);
-                bios_proto_t *stat_msg = cmstats_put (self->stats, type, *step_p, bmsg);
+                bios_proto_t *stat_msg = cmstats_put (self->stats, type, step, *step_p, bmsg);
                 if (stat_msg) {
                     char *subject;
                     asprintf (&subject, "%s_%s_%s@%s",

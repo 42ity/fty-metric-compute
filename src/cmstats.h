@@ -52,7 +52,11 @@ AGENT_CM_EXPORT void
 // * arithmetic_mean - to compute arithmetic mean
 //
 AGENT_CM_EXPORT bios_proto_t*
-    cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bmsg);
+    cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step, bios_proto_t *bmsg);
+
+//  Polling handler - publish && reset the computed values
+AGENT_CM_EXPORT void
+    cmstats_poll (cmstats_t *self, mlm_client_t *client, int64_t now);
 
 //  Self test of this class
 AGENT_CM_EXPORT void

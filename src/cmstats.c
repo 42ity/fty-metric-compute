@@ -151,8 +151,8 @@ cmstats_print (cmstats_t *self)
 // * max - for find a maximum value
 // * arithmetic_mean - to compute arithmetic mean
 //
-AGENT_CM_EXPORT bios_proto_t *
-cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bmsg)
+bios_proto_t *
+cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step, bios_proto_t *bmsg)
 {
     assert (self);
     assert (type);
@@ -167,10 +167,10 @@ cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
     now = now - (now % step);
 
     char *key;
-    asprintf (&key, "%s_%s_%"PRIu32"@%s",
+    asprintf (&key, "%s_%s_%s@%s",
             bios_proto_type (bmsg),
             type,
-            step,
+            sstep,
             bios_proto_element_src (bmsg));
 
     bios_proto_t *stat_msg = (bios_proto_t*) zhashx_lookup (self->stats, key);
@@ -227,8 +227,43 @@ cmstats_put (cmstats_t *self, const char* type, uint32_t step, bios_proto_t *bms
     return NULL;
 }
 
+
 //  --------------------------------------------------------------------------
-//  Load the cmstats from filename
+//  Polling handler - publish && reset the computed values
+
+void
+cmstats_poll (cmstats_t *self, mlm_client_t *client, int64_t now)
+{
+    assert (self);
+    assert (client);
+    for (bios_proto_t *stat_msg = (bios_proto_t*) zhashx_first (self->stats);
+                       stat_msg != NULL;
+                       stat_msg = (bios_proto_t*) zhashx_next (self->stats))
+    {
+        const char* key = (const char*) zhashx_cursor (self->stats);
+
+        uint64_t stat_now = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
+        uint64_t step = bios_proto_aux_number (stat_msg, AGENT_CM_STEP, 0);
+
+        // it is, return the stat value and "restart" the computation
+        if (now - stat_now >= step * 1000) {
+            bios_proto_t *ret = bios_proto_dup (stat_msg);
+
+            bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now);
+            bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
+            bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");
+
+            bios_proto_set_value (stat_msg, "0");
+
+            zmsg_t *msg = bios_proto_encode (&ret);
+            mlm_client_send (client, key, &msg);
+        }
+    }
+}
+
+//  --------------------------------------------------------------------------
+//  Save the cmstats to filename, return -1 if fail
+
 int
 cmstats_save (cmstats_t *self, const char *filename)
 {
@@ -266,6 +301,9 @@ cmstats_save (cmstats_t *self, const char *filename)
     zconfig_destroy (&root);
     return r;
 }
+
+//  --------------------------------------------------------------------------
+//  Load the cmstats from filename
 
 cmstats_t *
 cmstats_load (const char *filename)
@@ -337,11 +375,11 @@ cmstats_test (bool verbose)
     bios_proto_t *bmsg = bios_proto_decode (&msg);
     bios_proto_t *stats = NULL;
 
-    stats = cmstats_put (self, "min", 1, bmsg);
+    stats = cmstats_put (self, "min", "1", 1, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "max", 1, bmsg);
+    stats = cmstats_put (self, "max", "1", 1, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "arithmetic_mean", 1, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "1", 1, bmsg);
     assert (!stats);
     bios_proto_destroy (&bmsg);
     zclock_sleep (500);
@@ -356,11 +394,11 @@ cmstats_test (bool verbose)
             10);
     bmsg = bios_proto_decode (&msg);
 
-    stats = cmstats_put (self, "min", 1, bmsg);
+    stats = cmstats_put (self, "min", "1", 1, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "max", 1, bmsg);
+    stats = cmstats_put (self, "max", "1", 1, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "arithmetic_mean", 1, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "1", 1, bmsg);
     assert (!stats);
     bios_proto_destroy (&bmsg);
     
@@ -377,7 +415,7 @@ cmstats_test (bool verbose)
     bmsg = bios_proto_decode (&msg);
 
     //  1.4 check the minimal value
-    stats = cmstats_put (self, "min", 1, bmsg);
+    stats = cmstats_put (self, "min", "1", 1, bmsg);
     assert (stats);
     if (verbose)
         bios_proto_print (stats);
@@ -386,7 +424,7 @@ cmstats_test (bool verbose)
     bios_proto_destroy (&stats);
 
     //  1.5 check the maximum value
-    stats = cmstats_put (self, "max", 1, bmsg);
+    stats = cmstats_put (self, "max", "1", 1, bmsg);
     assert (stats);
     if (verbose)
         bios_proto_print (stats);
@@ -395,7 +433,7 @@ cmstats_test (bool verbose)
     bios_proto_destroy (&stats);
 
     //  1.6 check the maximum value
-    stats = cmstats_put (self, "arithmetic_mean", 1, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "1", 1, bmsg);
     assert (stats);
     if (verbose)
         bios_proto_print (stats);
