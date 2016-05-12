@@ -38,7 +38,7 @@ static test_item_t
 all_tests [] = {
     { "cmstats", cmstats_test },
     { "cmsteps", cmsteps_test },
-    //{ "bios_cm_server", bios_cm_server_test },
+    { "bios_cm_server", bios_cm_server_test },
     {0, 0}          //  Sentinel
 };
 
