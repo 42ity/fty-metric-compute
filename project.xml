@@ -24,6 +24,7 @@
     </use>
 
     <class name="cmstats" private="1" >Computing the stats on metrics</class>
+    <class name="cmsteps" private="1" >Helper class for list of steps</class>
     <class name="bios_cm_server" state="stable" >Computation server implementation</class>
 
     <main name="bios-agent-cm" service="1" />

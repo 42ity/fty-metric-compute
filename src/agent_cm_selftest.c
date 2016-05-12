@@ -37,6 +37,7 @@ typedef struct {
 static test_item_t
 all_tests [] = {
     { "cmstats", cmstats_test },
+    { "cmsteps", cmsteps_test },
     //{ "bios_cm_server", bios_cm_server_test },
     {0, 0}          //  Sentinel
 };
@@ -95,7 +96,7 @@ main (int argc, char **argv)
         else
         if (streq (argv [argn], "--number")
         ||  streq (argv [argn], "-n")) {
-            puts ("2");
+            puts ("3");
             return 0;
         }
         else
@@ -103,6 +104,7 @@ main (int argc, char **argv)
         ||  streq (argv [argn], "-l")) {
             puts ("Available tests:");
             puts ("    cmstats");
+            puts ("    cmsteps");
             puts ("    bios_cm_server");
             return 0;
         }

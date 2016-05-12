@@ -29,6 +29,7 @@ TESTS =
 
 EXTRA_DIST = \
     src/cmstats.h \
+    src/cmsteps.h \
     README.md \
     src/agent_cm_classes.h
 

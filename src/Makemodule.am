@@ -19,6 +19,7 @@ include_HEADERS = \
 
 src_libagent_cm_la_SOURCES = \
     src/cmstats.c \
+    src/cmsteps.c \
     src/bios_cm_server.c \
     src/platform.h
 
