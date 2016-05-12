@@ -28,58 +28,8 @@
 
 #include "agent_cm_classes.h"
 
-//  Structure of our class
-
-struct _bios_cm_server_t {
-    int filler;     //  Declare class properties here
-};
-
-// convert the time with prefix to number in seconds
-// "42" -> 42
-// "42s" -> 42
-// "42m" -> 2520
-static int64_t s_string2secs (const char *step)
-{
-    assert (step);
-    assert (strlen (step) > 0);
-
-    int64_t ret = 0;
-    uint32_t times = 1;
-    
-    char suffix = tolower (step [strlen (step) -1]);
-
-    if (!isdigit (suffix)) {
-        switch (suffix) {
-            case 's' :
-                times = 1;
-                break;
-            case 'm' :
-                times = 60;
-                break;
-            case 'h' :
-                times = 60*60;
-                break;
-            case 'd' :
-                times = 24*60*60;
-                break;
-            default :
-                return -1;
-        }
-    }
-
-    ret = (int64_t) atoi (step);
-    if (ret < 0)
-        return -1;
-    ret *= times;
-    if (ret > UINT32_MAX)
-        return -1;
-
-    return ret;
-
-}
-
 //  --------------------------------------------------------------------------
-//  Create a new bios_cm_server
+//  bios_cm_server actor
 
 void
 bios_cm_server (zsock_t *pipe, void *args)
@@ -88,8 +38,7 @@ bios_cm_server (zsock_t *pipe, void *args)
     char *name = strdup (args);
     cmstats_t *stats = cmstats_new ();
 
-    zlist_t *steps = zlist_new ();
-    zlist_autofree (steps);
+    cmsteps_t *steps = cmsteps_new ();
     zlist_t *types = zlist_new ();
     zlist_autofree (types);
 
@@ -162,14 +111,9 @@ bios_cm_server (zsock_t *pipe, void *args)
                     char *foo = zmsg_popstr (msg);
                     if (!foo)
                         break;
-                    if (s_string2secs (foo) != -1) {
-                        zlist_append (steps, foo);
-                        if (verbose)
-                            zsys_debug ("%s:\tadd step='%s'", name, foo);
-                    }
-                    else {
+                    int r = cmsteps_put (steps, foo);
+                    if (r == -1)
                         zsys_info ("%s:\tignoring unrecognized step='%s'", name, foo);
-                    }
                     zstr_free (&foo);
                 }
             }
@@ -200,15 +144,16 @@ bios_cm_server (zsock_t *pipe, void *args)
         if (!streq (bios_proto_type (bmsg), "realpower.default"))
             continue;
 
-        for (const char *step = (const char*) zlist_first (steps);
-                         step != NULL;
-                         step = (const char*) zlist_next (steps))
+        for (uint32_t *step_p = cmsteps_first (steps);
+                       step_p != NULL;
+                       step_p = cmsteps_next (steps))
         {
             for (const char *type = (const char*) zlist_first (types);
                              type != NULL;
                              type = (const char*) zlist_next (types))
             {
-                bios_proto_t *stat_msg = cmstats_put (stats, type, (uint32_t) s_string2secs (step), bmsg);
+                const char *step = (const char*) cmsteps_cursor (steps);
+                bios_proto_t *stat_msg = cmstats_put (stats, type, *step_p, bmsg);
                 if (stat_msg) {
                     char *subject;
                     asprintf (&subject, "%s_%s_%s@%s",
@@ -229,7 +174,7 @@ bios_cm_server (zsock_t *pipe, void *args)
     }
 
     zlist_destroy (&types);
-    zlist_destroy (&steps);
+    cmsteps_destroy (&steps);
     zpoller_destroy (&poller);
     mlm_client_destroy (&client);
     cmstats_destroy (&stats);
@@ -247,14 +192,6 @@ bios_cm_server_test (bool verbose)
 
     //  @selftest
 
-    assert (s_string2secs ("42") == 42);
-    assert (s_string2secs ("42s") == 42);
-    assert (s_string2secs ("42m") == 42*60);
-    assert (s_string2secs ("42h") == 42*60*60);
-    assert (s_string2secs ("42d") == 42*24*60*60);
-    assert (s_string2secs ("42X") == -1);
-    assert (s_string2secs ("-42") == -1);
- 
     static const char *endpoint = "inproc://cm-server-test";
 
     // create broker

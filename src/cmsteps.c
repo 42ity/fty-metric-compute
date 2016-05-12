@@ -60,7 +60,8 @@ cmsteps_new (void)
 //      "42s" -> 42
 //      "42m" -> 2520
 
-static int64_t cmsteps_toint (const char *step)
+int64_t
+cmsteps_toint (const char *step)
 {
     assert (step);
     assert (strlen (step) > 0);

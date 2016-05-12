@@ -37,6 +37,35 @@ AGENT_CM_EXPORT cmsteps_t *
 AGENT_CM_EXPORT void
     cmsteps_destroy (cmsteps_t **self_p);
 
+//  Convert the time with prefix to number in seconds
+//      "42" -> 42
+//      "42s" -> 42
+//      "42m" -> 2520
+
+AGENT_CM_EXPORT int64_t
+    cmsteps_toint (const char *step);
+
+//  Put new step to the list, return -1 if fail (possibly wrong step)
+AGENT_CM_EXPORT int
+    cmsteps_put (cmsteps_t *self, const char* step);
+
+//  Get new step to the list. Return -1 in case of error, however positive
+//  result can be cast to uint32_t
+AGENT_CM_EXPORT int64_t
+    cmsteps_get (cmsteps_t *self, const char* step);
+
+//  Return iterator to first item
+AGENT_CM_EXPORT uint32_t *
+    cmsteps_first (cmsteps_t *self);
+
+//  Return iterator to next item or NULL
+AGENT_CM_EXPORT uint32_t *
+    cmsteps_next (cmsteps_t *self);
+
+//  Return cursor
+AGENT_CM_EXPORT const void *
+    cmsteps_cursor (cmsteps_t *self);
+
 //  Self test of this class
 AGENT_CM_EXPORT void
     cmsteps_test (bool verbose);
