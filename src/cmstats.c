@@ -167,11 +167,12 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
     now = now - (now % step);
 
     char *key;
-    asprintf (&key, "%s_%s_%s@%s",
+    int r = asprintf (&key, "%s_%s_%s@%s",
             bios_proto_type (bmsg),
             type,
             sstep,
             bios_proto_element_src (bmsg));
+    assert (r != -1);   // make gcc @ rhel happy
 
     bios_proto_t *stat_msg = (bios_proto_t*) zhashx_lookup (self->stats, key);
 
@@ -319,7 +320,8 @@ cmstats_save (cmstats_t *self, const char *filename)
         {
             const char *aux_key = (const char*) zhash_cursor (aux);
             char *item_key;
-            asprintf (&item_key, "aux.%s", aux_key);
+            int r = asprintf (&item_key, "aux.%s", aux_key);
+            assert (r != -1);   // make gcc @ rhel happy
             zconfig_put (item, item_key, aux_value);
             zstr_free (&item_key);
         }
