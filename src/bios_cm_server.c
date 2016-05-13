@@ -445,12 +445,17 @@ bios_cm_server_test (bool verbose)
 
     // to prevent false positives in memcheck - there should not be any messages in a broker
     // on the end of the run
-    // TODO: can't it be better? like while (zsock_can_read (mlm_client_msgpipe ( ...???
-    for (int i = 0; i != 6; i++)
-    {
+    zpoller_t *poller = zpoller_new (mlm_client_msgpipe (consumer), mlm_client_msgpipe (producer), NULL);
+    while (!zsys_interrupted) {
+        void *which = zpoller_wait (poller, 1000);
+
+        if (!which)
+            break;
+        
         msg = mlm_client_recv (consumer);
         zmsg_destroy (&msg);
     }
+    zpoller_destroy (&poller);
 
     mlm_client_destroy (&consumer);
     mlm_client_destroy (&producer);
