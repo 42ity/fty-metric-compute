@@ -225,10 +225,6 @@ bios_cm_server (zsock_t *pipe, void *args)
         zmsg_t *msg = mlm_client_recv (self->client);
         bios_proto_t *bmsg = bios_proto_decode (&msg);
 
-        //TODO: need to know the list of types and or devices to compute
-        if (!streq (bios_proto_type (bmsg), "realpower.default"))
-            continue;
-
         for (uint32_t *step_p = cmsteps_first (self->steps);
                        step_p != NULL;
                        step_p = cmsteps_next (self->steps))
