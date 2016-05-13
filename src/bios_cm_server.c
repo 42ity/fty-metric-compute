@@ -396,6 +396,8 @@ bios_cm_server_test (bool verbose)
             "UNIT",
             10);
     mlm_client_send (producer, "realpower.default@DEV1", &msg);
+    
+    zclock_sleep(500);
 
     // now we have 1s and 5s min/max as well
     for (int i = 0; i != 4; i++) {
