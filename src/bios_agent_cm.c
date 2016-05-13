@@ -83,6 +83,7 @@ int main (int argc, char *argv [])
     zstr_sendx (cm_server, "DIR", "src", NULL);
     zstr_sendx (cm_server, "CONNECT", endpoint, "bios-cm-server", NULL);
     zstr_sendx (cm_server, "PRODUCER", BIOS_PROTO_STREAM_METRICS, NULL);
+    zstr_sendx (cm_server, "CONSUMER", BIOS_PROTO_STREAM_ASSETS, ".*", NULL);
     zstr_sendx (cm_server, "CONSUMER", BIOS_PROTO_STREAM_METRICS, "^realpower.default.*", NULL);
     
     // src/malamute.c, under MPL license

@@ -225,6 +225,16 @@ bios_cm_server (zsock_t *pipe, void *args)
         zmsg_t *msg = mlm_client_recv (self->client);
         bios_proto_t *bmsg = bios_proto_decode (&msg);
 
+        if (streq (mlm_client_address (self->client), BIOS_PROTO_STREAM_ASSETS)) {
+            const char *op = bios_proto_operation (bmsg);
+            if (streq (op, "delete")
+            ||  streq (op, "retire"))
+                cmstats_delete_dev (self->stats, bios_proto_name (bmsg));
+
+            bios_proto_destroy (&bmsg);
+            continue;
+        }
+
         for (uint32_t *step_p = cmsteps_first (self->steps);
                        step_p != NULL;
                        step_p = cmsteps_next (self->steps))
