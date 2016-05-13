@@ -113,7 +113,7 @@ bios_cm_server (zsock_t *pipe, void *args)
             break;
 
         if (!which && zpoller_expired (poller)) {
-	    cmstats_poll (self->stats, self->client, zclock_mono ());
+            cmstats_poll (self->stats, self->client, zclock_mono ());
 	    
             if (self->filename) {
                 int r = cmstats_save (self->stats, self->filename);
