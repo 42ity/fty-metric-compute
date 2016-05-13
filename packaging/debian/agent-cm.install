@@ -1,2 +1,3 @@
 usr/bin/bios-agent-cm
 usr/lib/systemd/system/bios-agent-cm*.service
+usr/lib/tmpfiles.d/bios-agent-cm.conf

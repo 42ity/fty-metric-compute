@@ -95,6 +95,7 @@ find %{buildroot} -name '*.la' | xargs rm -f
 %doc README.md
 %{_bindir}/bios-agent-cm
 %{_prefix}/lib/systemd/system/bios-agent-cm*.service
+/usr/lib/tmpfiles.d/bios-agent-cm.conf
 
 
 %changelog
