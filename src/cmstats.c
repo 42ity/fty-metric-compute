@@ -167,11 +167,12 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
     now = now - (now % step);
 
     char *key;
-    asprintf (&key, "%s_%s_%s@%s",
+    int r = asprintf (&key, "%s_%s_%s@%s",
             bios_proto_type (bmsg),
             type,
             sstep,
             bios_proto_element_src (bmsg));
+    assert (r != -1);   // make gcc @ rhel happy
 
     bios_proto_t *stat_msg = (bios_proto_t*) zhashx_lookup (self->stats, key);
 
@@ -227,6 +228,35 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
     return NULL;
 }
 
+//  --------------------------------------------------------------------------
+//  Remove all the entries related to device dev from stats
+void
+cmstats_delete_dev (cmstats_t *self, const char *dev)
+{
+    assert (self);
+    assert (dev);
+
+    zlist_t *keys = zlist_new ();
+    // no autofree here, this list constains only _references_ to keys,
+    // which are owned and cleanded up by self->stats on zhashx_delete
+
+    for (bios_proto_t *stat_msg = (bios_proto_t*) zhashx_first (self->stats);
+                       stat_msg != NULL;
+                       stat_msg = (bios_proto_t*) zhashx_next (self->stats))
+    {
+        const char* key = (const char*) zhashx_cursor (self->stats);
+        if (streq (bios_proto_element_src (stat_msg), dev))
+            zlist_append (keys, (void*) key);
+    }
+
+    for (const char* key = (const char*) zlist_first (keys);
+                     key != NULL;
+                     key = (const char*) zlist_next (keys))
+    {
+        zhashx_delete (self->stats, key);
+    }
+    zlist_destroy (&keys);
+}
 
 //  --------------------------------------------------------------------------
 //  Polling handler - publish && reset the computed values
@@ -290,7 +320,8 @@ cmstats_save (cmstats_t *self, const char *filename)
         {
             const char *aux_key = (const char*) zhash_cursor (aux);
             char *item_key;
-            asprintf (&item_key, "aux.%s", aux_key);
+            int r = asprintf (&item_key, "aux.%s", aux_key);
+            assert (r != -1);   // make gcc @ rhel happy
             zconfig_put (item, item_key, aux_value);
             zstr_free (&item_key);
         }
@@ -450,6 +481,9 @@ cmstats_test (bool verbose)
     //         hint is - uncomment the print :)
     //cmstats_print (self);
     assert (zhashx_lookup (self->stats, "TYPE_max_1@ELEMENT_SRC"));
+
+    cmstats_delete_dev (self, "ELEMENT_SRC");
+    assert (!zhashx_lookup (self->stats, "TYPE_max_1@ELEMENT_SRC"));
 
     cmstats_destroy (&self);
     unlink (file);

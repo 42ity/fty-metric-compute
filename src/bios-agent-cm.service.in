@@ -1,11 +1,18 @@
 [Unit]
-Description=bios-agent-cm service
-After=network.target
+Description=BIOS computation services (min, max, averages)
+After=malamute.service
+PartOf=bios.target
 
 [Service]
 Type=simple
+EnvironmentFile=-/usr/share/bios/etc/default/bios
+EnvironmentFile=-/usr/share/bios/etc/default/bios__%n.conf
+EnvironmentFile=-/etc/default/bios
+EnvironmentFile=-/etc/default/bios__%n.conf
+EnvironmentFile=-/etc/bios/bios-db-rw
 Environment="prefix=@prefix@"
-ExecStart=@prefix@/bin/bios-agent-cm @sysconfdir@/@PACKAGE@/bios-agent-cm.cfg
+ExecStart=@prefix@/bin/bios-agent-cm
+Restart=allways
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=bios.target

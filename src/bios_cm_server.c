@@ -225,9 +225,15 @@ bios_cm_server (zsock_t *pipe, void *args)
         zmsg_t *msg = mlm_client_recv (self->client);
         bios_proto_t *bmsg = bios_proto_decode (&msg);
 
-        //TODO: need to know the list of types and or devices to compute
-        if (!streq (bios_proto_type (bmsg), "realpower.default"))
+        if (streq (mlm_client_address (self->client), BIOS_PROTO_STREAM_ASSETS)) {
+            const char *op = bios_proto_operation (bmsg);
+            if (streq (op, "delete")
+            ||  streq (op, "retire"))
+                cmstats_delete_dev (self->stats, bios_proto_name (bmsg));
+
+            bios_proto_destroy (&bmsg);
             continue;
+        }
 
         for (uint32_t *step_p = cmsteps_first (self->steps);
                        step_p != NULL;
@@ -241,11 +247,12 @@ bios_cm_server (zsock_t *pipe, void *args)
                 bios_proto_t *stat_msg = cmstats_put (self->stats, type, step, *step_p, bmsg);
                 if (stat_msg) {
                     char *subject;
-                    asprintf (&subject, "%s_%s_%s@%s",
+                    int r = asprintf (&subject, "%s_%s_%s@%s",
                             bios_proto_type (stat_msg),
                             type,
                             step,
                             bios_proto_element_src (stat_msg));
+                    assert (r != -1);   // make gcc @ rhel happy
 
                     zmsg_t *msg = bios_proto_encode (&stat_msg);
                     mlm_client_send (self->client, subject, &msg);
@@ -438,12 +445,17 @@ bios_cm_server_test (bool verbose)
 
     // to prevent false positives in memcheck - there should not be any messages in a broker
     // on the end of the run
-    // TODO: can't it be better? like while (zsock_can_read (mlm_client_msgpipe ( ...???
-    for (int i = 0; i != 6; i++)
-    {
+    zpoller_t *poller = zpoller_new (mlm_client_msgpipe (consumer), mlm_client_msgpipe (producer), NULL);
+    while (!zsys_interrupted) {
+        void *which = zpoller_wait (poller, 1000);
+
+        if (!which)
+            break;
+        
         msg = mlm_client_recv (consumer);
         zmsg_destroy (&msg);
     }
+    zpoller_destroy (&poller);
 
     mlm_client_destroy (&consumer);
     mlm_client_destroy (&producer);

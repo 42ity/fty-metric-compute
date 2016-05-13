@@ -54,6 +54,10 @@ AGENT_CM_EXPORT void
 AGENT_CM_EXPORT bios_proto_t*
     cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step, bios_proto_t *bmsg);
 
+//  Remove all the entries related to device dev from stats
+AGENT_CM_EXPORT void
+    cmstats_delete_dev (cmstats_t *self, const char *dev);
+
 //  Polling handler - publish && reset the computed values
 AGENT_CM_EXPORT void
     cmstats_poll (cmstats_t *self, mlm_client_t *client, int64_t now);
