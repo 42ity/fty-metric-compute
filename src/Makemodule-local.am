@@ -1,5 +1,5 @@
 
 if WITH_SYSTEMD_UNITS
-tmpfilesdir = @prefix@/usr/lib/tmpfiles.d
+tmpfilesdir = @prefix@/lib/tmpfiles.d
 tmpfiles_DATA = src/bios-agent-cm.conf
 endif WITH_SYSTEMD_UNITS
