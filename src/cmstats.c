@@ -178,14 +178,22 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
 
     // handle the first insert
     if (!stat_msg) {
-        bios_proto_aux_insert (bmsg, AGENT_CM_TIME, "%"PRIu64, now);
-        bios_proto_aux_insert (bmsg, AGENT_CM_COUNT, "1");
-        bios_proto_aux_insert (bmsg, AGENT_CM_SUM, "0");
-        bios_proto_aux_insert (bmsg, AGENT_CM_TYPE, "%s", type);
-        bios_proto_aux_insert (bmsg, AGENT_CM_STEP, "%"PRIu32, step);
-        bios_proto_set_ttl (bmsg, 2 * step);
-        zhashx_insert (self->stats, key, bmsg);
+
+        stat_msg = bios_proto_dup (bmsg);
+        bios_proto_set_type (stat_msg, zsys_sprintf ( "%s_%s_%s",
+            bios_proto_type (bmsg),
+            type,
+            sstep));
+
+        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now);
+        bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
+        bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");
+        bios_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", type);
+        bios_proto_aux_insert (stat_msg, AGENT_CM_STEP, "%"PRIu32, step);
+        bios_proto_set_ttl (stat_msg, 2 * step);
+        zhashx_insert (self->stats, key, stat_msg);
         zstr_free (&key);
+        bios_proto_destroy (&stat_msg);
         return NULL;
     }
     zstr_free (&key);

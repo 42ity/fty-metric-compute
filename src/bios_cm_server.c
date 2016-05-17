@@ -255,13 +255,10 @@ bios_cm_server (zsock_t *pipe, void *args)
                 const char *step = (const char*) cmsteps_cursor (self->steps);
                 bios_proto_t *stat_msg = cmstats_put (self->stats, type, step, *step_p, bmsg);
                 if (stat_msg) {
-                    char *subject;
-                    int r = asprintf (&subject, "%s_%s_%s@%s",
+                    char *subject = zsys_sprintf ("%s@%s",
                             bios_proto_type (stat_msg),
-                            type,
-                            step,
                             bios_proto_element_src (stat_msg));
-                    assert (r != -1);   // make gcc @ rhel happy
+                    assert (subject);
 
                     zmsg_t *msg = bios_proto_encode (&stat_msg);
                     mlm_client_send (self->client, subject, &msg);
