@@ -9,7 +9,7 @@ EnvironmentFile=-/usr/share/bios/etc/default/bios
 EnvironmentFile=-/usr/share/bios/etc/default/bios__%n.conf
 EnvironmentFile=-/etc/default/bios
 EnvironmentFile=-/etc/default/bios__%n.conf
-EnvironmentFile=-/etc/bios/bios-db-rw
+EnvironmentFile=-/etc/default/bios-db-rw
 Environment="prefix=@prefix@"
 ExecStart=@prefix@/bin/bios-agent-cm
 Restart=always
