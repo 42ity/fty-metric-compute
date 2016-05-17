@@ -270,7 +270,7 @@ cmstats_delete_dev (cmstats_t *self, const char *dev)
 //  Polling handler - publish && reset the computed values
 
 void
-cmstats_poll (cmstats_t *self, mlm_client_t *client, int64_t now)
+cmstats_poll (cmstats_t *self, mlm_client_t *client, int64_t now, bool verbose)
 {
     assert (self);
     assert (client);
@@ -293,6 +293,10 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, int64_t now)
 
             bios_proto_set_value (stat_msg, "0");
 
+            if (verbose) {
+                zsys_debug ("cmstats:\tpublish message, subject=%s", key);
+                bios_proto_print (ret);
+            }
             zmsg_t *msg = bios_proto_encode (&ret);
             mlm_client_send (client, key, &msg);
         }

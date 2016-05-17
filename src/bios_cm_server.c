@@ -113,7 +113,9 @@ bios_cm_server (zsock_t *pipe, void *args)
             break;
 
         if (!which && zpoller_expired (poller)) {
-            cmstats_poll (self->stats, self->client, zclock_mono ());
+            if (self->verbose)
+                zsys_debug ("%s:\tpolling interval expired, calling cmstats_poll");
+            cmstats_poll (self->stats, self->client, zclock_mono (), self->verbose);
 	    
             if (self->filename) {
                 int r = cmstats_save (self->stats, self->filename);
@@ -222,6 +224,18 @@ bios_cm_server (zsock_t *pipe, void *args)
                     zlist_append (self->types, foo);
                     zstr_free (&foo);
                 }
+            }
+            else
+            if (streq (command, "FILENAME"))
+            {
+                char *filename = zmsg_popstr (msg);
+                if (!filename)
+                    zsys_error ("%s:\tmissing filename argument", self->name);
+                if (self->verbose)
+                    zsys_debug ("%s:\tself->filename=%s", filename);
+                zstr_free (&self->filename);
+                self->filename = strdup (filename);
+                zstr_free (&filename);
             }
             else
                 zsys_warning ("%s:\tunkown API command=%s, ignoring", self->name, command);

@@ -85,6 +85,7 @@ int main (int argc, char *argv [])
     zstr_sendx (cm_server, "PRODUCER", BIOS_PROTO_STREAM_METRICS, NULL);
     zstr_sendx (cm_server, "CONSUMER", BIOS_PROTO_STREAM_ASSETS, ".*", NULL);
     zstr_sendx (cm_server, "CONSUMER", BIOS_PROTO_STREAM_METRICS, "(^realpower.default.*|.*temperature.*|.*humidity.*)", NULL);
+    zstr_sendx (cm_server, "FILENAME", "/var/lib/bios/bios-agent-cm/state.zpl", NULL);
     
     // src/malamute.c, under MPL license
     while (true) {
