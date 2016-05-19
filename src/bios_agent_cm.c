@@ -72,7 +72,7 @@ int main (int argc, char *argv [])
 
     //  Insert main code here
     if (verbose)
-        zsys_info ("bios_agent_cm - \n\tendpoint=%s", endpoint);
+        zsys_info ("START: bios_agent_cm - starting at endpoint=%s", endpoint);
 
 
     zactor_t *cm_server = zactor_new (bios_cm_server, "bios-agent-cm");
@@ -101,6 +101,7 @@ int main (int argc, char *argv [])
     }
 
     zactor_destroy (&cm_server);
-
+    if (verbose)
+        zsys_info ("END: bios_agent_cm is stopped");
     return 0;
 }
