@@ -100,11 +100,18 @@ bios_cm_server (zsock_t *pipe, void *args)
     zsock_signal (pipe, 0);
     while (!zsys_interrupted)
     {
+        int64_t last_poll = -1;
         int interval = -1;
         if (cmsteps_gcd (self->steps) != 0) {
-            int64_t now = zclock_mono ();
+            int64_t now = zclock_time () / 1000;
             // find next nearest interval to compute some average
-            interval = now - (now % -cmsteps_gcd (self->steps)) + 15;
+            interval = (cmsteps_gcd (self->steps) - (now % cmsteps_gcd (self->steps))) * 1000;
+            if (self->verbose)
+                zsys_debug ("now=%"PRIu64 "s, cmsteps_gcd=%"PRIu32 "s, interval=%dms",
+                        now,
+                        cmsteps_gcd (self->steps),
+                        interval
+                        );
         }
 
         void *which = zpoller_wait (poller, interval);
@@ -112,10 +119,19 @@ bios_cm_server (zsock_t *pipe, void *args)
         if (!which && zpoller_terminated (poller))
             break;
 
-        if (!which && zpoller_expired (poller)) {
-            if (self->verbose)
-                zsys_debug ("%s:\tpolling interval expired, calling cmstats_poll");
-            cmstats_poll (self->stats, self->client, zclock_mono (), self->verbose);
+        // poll when zpoller expired
+        // TODO: is the second condition necessary??
+        if ((!which && zpoller_expired (poller))
+        ||  (last_poll > 0 && (zclock_time () - last_poll) > cmsteps_gcd (self->steps))) {
+
+            if (self->verbose) {
+                if (zpoller_expired (poller))
+                    zsys_debug ("%s:\tzpoller_expired, calling cmstats_poll", self->name);
+                else
+                    zsys_debug ("%s:\ttime (not zpoller) expired, calling cmstats_poll", self->name);
+            }
+
+            cmstats_poll (self->stats, self->client, self->verbose);
 	    
             if (self->filename) {
                 int r = cmstats_save (self->stats, self->filename);
@@ -125,6 +141,7 @@ bios_cm_server (zsock_t *pipe, void *args)
                     if (self->verbose)
                         zsys_info ("%s:\t'%s' saved succesfully", self->name, self->filename);
             }
+            last_poll = zclock_time ();
             continue;
         }
 
@@ -141,8 +158,10 @@ bios_cm_server (zsock_t *pipe, void *args)
                 break;
             }
             else
-            if (streq (command, "VERBOSE"))
+            if (streq (command, "VERBOSE")) {
                 self->verbose=true;
+                zsys_debug ("%s:\tVERBOSE", self->name);
+            }
             else
             if (streq (command, "DIR")) {
                 char* dir = zmsg_popstr (msg);
@@ -305,7 +324,8 @@ bios_cm_server (zsock_t *pipe, void *args)
 void
 bios_cm_server_test (bool verbose)
 {
-    printf (" * bios_cm_server: ");
+    printf (" * bios_cm_server: EMPTY!!\n");
+    return;
 
     //  @selftest
     unlink ("src/state.zpl");

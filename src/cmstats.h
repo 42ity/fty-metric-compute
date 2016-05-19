@@ -60,7 +60,7 @@ AGENT_CM_EXPORT void
 
 //  Polling handler - publish && reset the computed values
 AGENT_CM_EXPORT void
-    cmstats_poll (cmstats_t *self, mlm_client_t *client, int64_t now, bool verbose);
+    cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose);
 
 //  Save the cmstats to filename, return -1 if fail
 AGENT_CM_EXPORT int
