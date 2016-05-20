@@ -56,7 +56,8 @@ s_min (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     uint64_t bmsg_value = atol (bios_proto_value ((bios_proto_t*) bmsg));
     uint64_t stat_value = atol (bios_proto_value (stat_msg));
 
-    if (bmsg_value < stat_value) {
+    if ((bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 1) == 1)
+    || (bmsg_value < stat_value)) {
         bios_proto_set_value (stat_msg, "%"PRIu64, bmsg_value);
     }
 }
