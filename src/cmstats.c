@@ -159,13 +159,14 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
     assert (type);
     assert (bmsg);
 
-    int64_t now = zclock_time () / 1000;
+    uint64_t now_ms = (uint64_t) zclock_time ();
+    uint64_t now_s = now_ms / 1000;
     // round the now to earliest time start
     // ie for 12:16:29 / step 15*60 return 12:15:00
     //    for 12:16:29 / step 60*60 return 12:00:00
     //    ... etc
     // works well for any value of step
-    now = now - (now % step);
+    now_s = now_s - (now_s % step);
 
     char *key;
     int r = asprintf (&key, "%s_%s_%s@%s",
@@ -186,7 +187,7 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
             type,
             sstep);
 
-        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now);
+        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now_s);
         bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");
         bios_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", type);
@@ -201,18 +202,19 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
 
     // there is already some value
     // so check if it's not already older than we need
-    uint64_t stat_now = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
+    uint64_t stat_now_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
 
     // it is, return the stat value and "restart" the computation
-    if (now - stat_now >= step) {
+    if ((now_ms - (stat_now_s * 1000)) >= (step * 1000)) {
         bios_proto_t *ret = bios_proto_dup (stat_msg);
 
-        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now);
+        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now_s);
         bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");
 
         bios_proto_set_value (stat_msg, bios_proto_value (bmsg));
 
+        zsys_debug ("return ret <%p>", (void*) ret);
         return ret;
     }
 
@@ -276,7 +278,8 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
     assert (self);
     assert (client);
 
-    int64_t now = zclock_time () / 1000;
+    uint64_t now_ms = (uint64_t) zclock_time ();
+    uint64_t now_s = now_ms / 1000;
 
     for (bios_proto_t *stat_msg = (bios_proto_t*) zhashx_first (self->stats);
                        stat_msg != NULL;
@@ -284,17 +287,23 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
     {
         const char* key = (const char*) zhashx_cursor (self->stats);
 
-        uint64_t stat_now = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
+        uint64_t stat_now_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
         uint64_t step = bios_proto_aux_number (stat_msg, AGENT_CM_STEP, 0);
 
         if (verbose)
-            zsys_debug ("cmstats_poll: key=%s, now=%"PRIu64 "s, stat_now=%"PRIu64 "s, (now - stat_now)=%"PRIu64 "s, step=%"PRIu64 "s", key, now, stat_now, (now - stat_now), step);
+            zsys_debug ("cmstats_poll: key=%s\n\tnow_ms=%"PRIu64 ", now_s=%"PRIu64 ", stat_now_s=%"PRIu64 ", (now_ms - (stat_now_s * 1000))=%" PRIu64 ", step*1000=%"PRIu32,
+            key,
+            now_ms,
+            now_s,
+            stat_now_s,
+            (now_ms - stat_now_s * 1000),
+            step * 1000);
 
         // it is, return the stat value and "restart" the computation
-        if ((now - stat_now) >= step) {
+        if ((now_ms - (stat_now_s * 1000)) >= (step * 1000)) {
             bios_proto_t *ret = bios_proto_dup (stat_msg);
 
-            bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now);
+            bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now_s);
             bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
             bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");
 
@@ -402,7 +411,9 @@ cmstats_load (const char *filename)
 void
 cmstats_test (bool verbose)
 {
-    printf (" * cmstats: TODO  ... ");
+    printf (" * cmstats: ");
+    if (verbose)
+        printf ("\n");
 
     //  @selftest
     //  Simple create/destroy test
@@ -412,6 +423,23 @@ cmstats_test (bool verbose)
 
     cmstats_t *self = cmstats_new ();
     assert (self);
+
+
+    //XXX: the test is sensitive on timing!!!
+    //     so it must start at the beggining of the second
+    //     other option is to not test in second precision,
+    //     which will increase the time of make check far beyond
+    //     what developers would accept ;-)
+    {
+        int64_t now_ms = zclock_time ();
+        int64_t sl = 1000 - (now_ms % 1000);
+        zclock_sleep (sl);
+        if (verbose)
+            zsys_debug ("now_ms=%"PRIi64 ", sl=%"PRIi64 ", now=%"PRIi64,
+                now_ms,
+                sl,
+                zclock_time ());
+    }
 
     // 1. min test
     //  1.1 first metric in
@@ -434,7 +462,6 @@ cmstats_test (bool verbose)
     bios_proto_destroy (&bmsg);
     zclock_sleep (500);
 
-    /*  TODO: tests are "broken" when agent-cm got fixed
     //  1.2 second metric (inside interval) in
     msg = bios_proto_encode_metric (
             NULL,
@@ -453,7 +480,7 @@ cmstats_test (bool verbose)
     assert (!stats);
     bios_proto_destroy (&bmsg);
     
-    zclock_sleep (510);
+    zclock_sleep (610);
 
     //  1.3 third metric (outside interval) in
     msg = bios_proto_encode_metric (
@@ -504,7 +531,6 @@ cmstats_test (bool verbose)
 
     cmstats_delete_dev (self, "ELEMENT_SRC");
     assert (!zhashx_lookup (self->stats, "TYPE_max_1@ELEMENT_SRC"));
-    */
 
     cmstats_destroy (&self);
     unlink (file);
