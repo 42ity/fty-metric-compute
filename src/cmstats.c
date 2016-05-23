@@ -214,7 +214,6 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
 
         bios_proto_set_value (stat_msg, bios_proto_value (bmsg));
 
-        zsys_debug ("return ret <%p>", (void*) ret);
         return ret;
     }
 
@@ -423,7 +422,6 @@ cmstats_test (bool verbose)
 
     cmstats_t *self = cmstats_new ();
     assert (self);
-
 
     //XXX: the test is sensitive on timing!!!
     //     so it must start at the beggining of the second
