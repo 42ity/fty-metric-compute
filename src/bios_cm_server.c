@@ -245,18 +245,6 @@ bios_cm_server (zsock_t *pipe, void *args)
                 }
             }
             else
-            if (streq (command, "FILENAME"))
-            {
-                char *filename = zmsg_popstr (msg);
-                if (!filename)
-                    zsys_error ("%s:\tmissing filename argument", self->name);
-                if (self->verbose)
-                    zsys_debug ("%s:\tfilename=%s", self->name, filename);
-                zstr_free (&self->filename);
-                self->filename = strdup (filename);
-                zstr_free (&filename);
-            }
-            else
                 zsys_warning ("%s:\tunkown API command=%s, ignoring", self->name, command);
 
             zstr_free (&command);
