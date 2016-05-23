@@ -423,7 +423,6 @@ cmstats_test (bool verbose)
     cmstats_t *self = cmstats_new ();
     assert (self);
 
-
     //XXX: the test is sensitive on timing!!!
     //     so it must start at the beggining of the second
     //     other option is to not test in second precision,

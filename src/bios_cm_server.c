@@ -324,8 +324,9 @@ bios_cm_server (zsock_t *pipe, void *args)
 void
 bios_cm_server_test (bool verbose)
 {
-    printf (" * bios_cm_server: EMPTY!!\n");
-    return;
+    printf (" * bios_cm_server:");
+    if (verbose)
+        printf ("\n");
 
     //  @selftest
     unlink ("src/state.zpl");
@@ -356,6 +357,25 @@ bios_cm_server_test (bool verbose)
     zstr_sendx (cm_server, "PRODUCER", BIOS_PROTO_STREAM_METRICS, NULL);
     zstr_sendx (cm_server, "CONSUMER", BIOS_PROTO_STREAM_METRICS, ".*", NULL);
     zclock_sleep (500);
+    
+    //XXX: the test is sensitive on timing!!!
+    //     so it must start at the beggining of the fifth second in minute (00, 05, 10, ... 55)
+    //     other option is to not test in second precision,
+    //     which will increase the time of make check far beyond
+    //     what developers would accept ;-)
+    {
+        int64_t now_ms = zclock_time ();
+        int64_t sl = 5000 - (now_ms % 5000);
+        zclock_sleep (sl);
+        if (verbose)
+            zsys_debug ("now_ms=%"PRIi64 ", sl=%"PRIi64 ", now=%"PRIi64,
+                now_ms,
+                sl,
+                zclock_time ());
+    }
+
+    int64_t TEST_START_MS = zclock_time ();
+    zsys_debug ("TEST_START_MS=%"PRIi64, TEST_START_MS);
 
     zmsg_t *msg = bios_proto_encode_metric (
             NULL,
@@ -382,6 +402,11 @@ bios_cm_server_test (bool verbose)
         msg = mlm_client_recv (consumer);
         bmsg = bios_proto_decode (&msg);
 
+        if (verbose) {
+            zsys_debug ("subject=%s", mlm_client_subject (consumer));
+            bios_proto_print (bmsg);
+        }
+
         const char *type = bios_proto_aux_string (bmsg, AGENT_CM_TYPE, "");
         if (streq (type, "min")) {
             assert (streq (mlm_client_subject (consumer), "realpower.default_min_1s@DEV1"));
@@ -398,12 +423,17 @@ bios_cm_server_test (bool verbose)
         bios_proto_destroy (&bmsg);
     }
 
+    /*
     zclock_sleep (2500);
     // consume sent min/max - the unit test for 1s have
     for (int i = 0; i != 2; i++)
     {
         msg = mlm_client_recv (consumer);
         bios_proto_t *bmsg = bios_proto_decode (&msg);
+        if (verbose) {
+            zsys_debug ("subject=%s", mlm_client_subject (consumer));
+            bios_proto_print (bmsg);
+        }
         assert (bios_proto_value (bmsg)[0] == '0');
         bios_proto_destroy (&bmsg);
     }
@@ -427,7 +457,9 @@ bios_cm_server_test (bool verbose)
     mlm_client_send (producer, "realpower.default@DEV1", &msg);
 
     // trigger the 5s now
-    zclock_sleep (3000);
+    zsys_debug ("zclock_time=%"PRIi64, zclock_time ());
+    zclock_sleep (5000 - (TEST_START_MS % 5000) + 100);
+    zsys_debug ("zclock_time=%"PRIi64, zclock_time ());
     msg = bios_proto_encode_metric (
             NULL,
             "realpower.default",
@@ -498,7 +530,9 @@ bios_cm_server_test (bool verbose)
         zmsg_destroy (&msg);
     }
     zpoller_destroy (&poller);
+    */
 
+    zactor_destroy (&cm_server);
     mlm_client_destroy (&consumer);
     mlm_client_destroy (&producer);
     zactor_destroy (&server);
