@@ -83,12 +83,6 @@ s_arithmetic_mean (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     uint64_t sum = bios_proto_aux_number (stat_msg, AGENT_CM_SUM, 0);
 
-
-    zsys_debug ("#1: value=%"PRIu64 ", count=%"PRIu64 ", sum=%"PRIu64,
-            value,
-            count,
-            sum);
-
     // 0 means that we have first value
     if (count == 0)
         sum = value;
@@ -97,10 +91,6 @@ s_arithmetic_mean (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
 
     bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%"PRIu64, sum);
     bios_proto_set_value (stat_msg, "%f", ((double)sum) / (count+1) );
-
-    zsys_debug ("#2: value=%s, sum=%"PRIu64,
-            bios_proto_value (stat_msg),
-            bios_proto_aux_number (stat_msg, AGENT_CM_SUM, 0));
 }
 
 //  --------------------------------------------------------------------------
@@ -172,13 +162,12 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
     assert (bmsg);
 
     uint64_t now_ms = (uint64_t) zclock_time ();
-    uint64_t now_s = now_ms / 1000;
     // round the now to earliest time start
     // ie for 12:16:29 / step 15*60 return 12:15:00
     //    for 12:16:29 / step 60*60 return 12:00:00
     //    ... etc
     // works well for any value of step
-    now_s = now_s - (now_s % step);
+    uint64_t now_s = (now_ms - (now_ms % step)) / 1000;
 
     char *key;
     int r = asprintf (&key, "%s_%s_%s@%s",
@@ -290,7 +279,6 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
     assert (client);
 
     uint64_t now_ms = (uint64_t) zclock_time ();
-    uint64_t now_s = now_ms / 1000;
 
     for (bios_proto_t *stat_msg = (bios_proto_t*) zhashx_first (self->stats);
                        stat_msg != NULL;
@@ -300,6 +288,7 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
 
         uint64_t stat_now_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
         uint64_t step = bios_proto_aux_number (stat_msg, AGENT_CM_STEP, 0);
+        uint64_t now_s = (now_ms - (now_ms % step)) / 1000;
 
         if (verbose)
             zsys_debug ("cmstats_poll: key=%s\n\tnow_ms=%"PRIu64 ", now_s=%"PRIu64 ", stat_now_s=%"PRIu64 ", (now_ms - (stat_now_s * 1000))=%" PRIu64 ", step*1000=%"PRIu32,
