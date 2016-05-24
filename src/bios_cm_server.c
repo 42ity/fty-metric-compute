@@ -107,7 +107,8 @@ bios_cm_server (zsock_t *pipe, void *args)
             // find next nearest interval to compute some average
             interval = (cmsteps_gcd (self->steps) - (now % cmsteps_gcd (self->steps))) * 1000;
             if (self->verbose)
-                zsys_debug ("now=%"PRIu64 "s, cmsteps_gcd=%"PRIu32 "s, interval=%dms",
+                zsys_debug ("%s:\tnow=%"PRIu64 "s, cmsteps_gcd=%"PRIu32 "s, interval=%dms",
+                        self->name,
                         now,
                         cmsteps_gcd (self->steps),
                         interval
@@ -331,14 +332,20 @@ bios_cm_server_test (bool verbose)
     mlm_client_connect (producer, endpoint, 5000, "publisher");
     mlm_client_set_producer (producer, BIOS_PROTO_STREAM_METRICS);
 
-    mlm_client_t *consumer = mlm_client_new ();
-    mlm_client_connect (consumer, endpoint, 5000, "consumer");
-    mlm_client_set_consumer (consumer, BIOS_PROTO_STREAM_METRICS, ".*(min|max).*");
+    // 1s consumer
+    mlm_client_t *consumer_1s = mlm_client_new ();
+    mlm_client_connect (consumer_1s, endpoint, 5000, "consumer_1s");
+    mlm_client_set_consumer (consumer_1s, BIOS_PROTO_STREAM_METRICS, ".*(min|max|arithmetic_mean)_1s.*");
+
+    // 5s consumer
+    mlm_client_t *consumer_5s = mlm_client_new ();
+    mlm_client_connect (consumer_5s, endpoint, 5000, "consumer_5s");
+    mlm_client_set_consumer (consumer_5s, BIOS_PROTO_STREAM_METRICS, ".*(min|max|arithmetic_mean)_5s.*");
 
     zactor_t *cm_server = zactor_new (bios_cm_server, "bios-cm-server");
     if (verbose)
         zstr_sendx (cm_server, "VERBOSE", NULL);
-    zstr_sendx (cm_server, "TYPES", "min", "max", NULL);
+    zstr_sendx (cm_server, "TYPES", "min", "max", "arithmetic_mean", NULL);
     zstr_sendx (cm_server, "STEPS", "1s", "5s", NULL);
     zstr_sendx (cm_server, "DIR", "src", NULL);
     zstr_sendx (cm_server, "CONNECT", endpoint, "bios-cm-server", NULL);
@@ -363,7 +370,8 @@ bios_cm_server_test (bool verbose)
     }
 
     int64_t TEST_START_MS = zclock_time ();
-    zsys_debug ("TEST_START_MS=%"PRIi64, TEST_START_MS);
+    if (verbose)
+        zsys_debug ("TEST_START_MS=%"PRIi64, TEST_START_MS);
 
     zmsg_t *msg = bios_proto_encode_metric (
             NULL,
@@ -373,7 +381,6 @@ bios_cm_server_test (bool verbose)
             "UNIT",
             10);
     mlm_client_send (producer, "realpower.default@DEV1", &msg);
-    zclock_sleep (500);
 
     msg = bios_proto_encode_metric (
             NULL,
@@ -384,26 +391,34 @@ bios_cm_server_test (bool verbose)
             10);
     mlm_client_send (producer, "realpower.default@DEV1", &msg);
 
-    // now we should have first 1s min/max values published - from polling
-    for (int i = 0; i != 2; i++) {
+    // T+1100ms
+    zclock_sleep (5000 - (zclock_time () - TEST_START_MS) - 3900);
+
+    // now we should have first 1s min/max/avg values published - from polling
+    for (int i = 0; i != 3; i++) {
         bios_proto_t *bmsg = NULL;
-        msg = mlm_client_recv (consumer);
+        msg = mlm_client_recv (consumer_1s);
         bmsg = bios_proto_decode (&msg);
 
         if (verbose) {
-            zsys_debug ("subject=%s", mlm_client_subject (consumer));
+            zsys_debug ("subject=%s", mlm_client_subject (consumer_1s));
             bios_proto_print (bmsg);
         }
 
         const char *type = bios_proto_aux_string (bmsg, AGENT_CM_TYPE, "");
         if (streq (type, "min")) {
-            assert (streq (mlm_client_subject (consumer), "realpower.default_min_1s@DEV1"));
+            assert (streq (mlm_client_subject (consumer_1s), "realpower.default_min_1s@DEV1"));
             assert (streq (bios_proto_value (bmsg), "50"));
         }
         else
         if (streq (type, "max")) {
-            assert (streq (mlm_client_subject (consumer), "realpower.default_max_1s@DEV1"));
+            assert (streq (mlm_client_subject (consumer_1s), "realpower.default_max_1s@DEV1"));
             assert (streq (bios_proto_value (bmsg), "100"));
+        }
+        else
+        if (streq (type, "arithmetic_mean")) {
+            assert (streq (mlm_client_subject (consumer_1s), "realpower.default_arithmetic_mean_1s@DEV1"));
+            assert (streq (bios_proto_value (bmsg), "75.000000"));
         }
         else
             assert (false);
@@ -412,11 +427,9 @@ bios_cm_server_test (bool verbose)
     }
 
     // goto T+3100ms
-    zsys_debug ("zclock_time=%"PRIi64, zclock_time ());
     zclock_sleep (5000 - (zclock_time () - TEST_START_MS) - 1900);
-    zsys_debug ("zclock_time=%"PRIi64, zclock_time ());
 
-    // send some 1s min/max to differentiate the 1s and 5s later on
+    // send some 1s min/max to differentiate the 1s and 5s min/max later on
     msg = bios_proto_encode_metric (
             NULL,
             "realpower.default",
@@ -436,93 +449,93 @@ bios_cm_server_test (bool verbose)
 
     // goto T+4600
     zclock_sleep (5000 - (zclock_time () - TEST_START_MS) - 400);
-    // consume sent min/max - the unit test for 1s have
-    // there are 3 mins and 3 max published so far
-    for (int i = 0; i != 6; i++)
+    // consume sent min/max/avg - the unit test for 1s have
+    // there are 3 mins, 3 max and 3 arithmetic_mean published so far
+    for (int i = 0; i != 9; i++)
     {
-        msg = mlm_client_recv (consumer);
+        msg = mlm_client_recv (consumer_1s);
         bios_proto_t *bmsg = bios_proto_decode (&msg);
         if (verbose) {
-            zsys_debug ("subject=%s", mlm_client_subject (consumer));
+            zsys_debug ("subject=%s", mlm_client_subject (consumer_1s));
             bios_proto_print (bmsg);
         }
         
-        static const char* values[] = {"0", "42", "242"};
+        static const char* values[] = {"0", "42", "242", "142.000000"};
         bool test = false;
-        for (int i =0; i != 3; i++)
+        for (int i =0; i != sizeof (values); i++)
         {
             test = streq (values [i], bios_proto_value (bmsg));
             if (test)
                 break;
         }
 
+        assert (test);
+
         bios_proto_destroy (&bmsg);
     }
 
     // T+5100s
-    zsys_debug ("zclock_time=%"PRIi64, zclock_time ());
     zclock_sleep (5000 - (zclock_time () - TEST_START_MS) + 100);
-    zsys_debug ("zclock_time=%"PRIi64, zclock_time ());
     
     // now we have 2 times 1s and 5s min/max as well
-    for (int i = 0; i != 6; i++) {
+    for (int i = 0; i != 3; i++) {
         bios_proto_t *bmsg = NULL;
-        msg = mlm_client_recv (consumer);
+        msg = mlm_client_recv (consumer_5s);
         bmsg = bios_proto_decode (&msg);
 
         if (verbose) {
             zsys_debug ("zclock_time=%"PRIi64 "s", zclock_time ());
-            zsys_debug ("subject=%s", mlm_client_subject (consumer));
+            zsys_debug ("subject=%s", mlm_client_subject (consumer_5s));
             bios_proto_print (bmsg);
         }
 
         const char *type = bios_proto_aux_string (bmsg, AGENT_CM_TYPE, "");
-        const char *step = bios_proto_aux_string (bmsg, AGENT_CM_STEP, "");
 
-        if (streq (type, "min") && streq (step, "1")) {
-            assert (streq (mlm_client_subject (consumer), "realpower.default_min_1s@DEV1"));
-            assert (streq (bios_proto_value (bmsg), "0"));
-        }
-        else
-        if (streq (type, "min") && streq (step, "5")) {
-            assert (streq (mlm_client_subject (consumer), "realpower.default_min_5s@DEV1"));
+        if (streq (type, "min")) {
+            assert (streq (mlm_client_subject (consumer_5s), "realpower.default_min_5s@DEV1"));
             assert (streq (bios_proto_value (bmsg), "42"));
         }
         else
-        if (streq (type, "max") && streq (step, "1")) {
-            assert (streq (mlm_client_subject (consumer), "realpower.default_max_1s@DEV1"));
-            assert (streq (bios_proto_value (bmsg), "0"));
+        if (streq (type, "max")) {
+            assert (streq (mlm_client_subject (consumer_5s), "realpower.default_max_5s@DEV1"));
+            assert (streq (bios_proto_value (bmsg), "242"));
         }
         else
-        if (streq (type, "max") && streq (step, "5")) {
-            assert (streq (mlm_client_subject (consumer), "realpower.default_max_5s@DEV1"));
-            assert (streq (bios_proto_value (bmsg), "242"));
+        if (streq (type, "arithmetic_mean")) {
+            assert (streq (mlm_client_subject (consumer_5s), "realpower.default_arithmetic_mean_5s@DEV1"));
+            // (100 + 50 + 42 + 242) / 5
+            assert (streq (bios_proto_value (bmsg), "108.500000"));
         }
         else
             assert (false);
 
         bios_proto_destroy (&bmsg);
     }
-
     zactor_destroy (&cm_server);
     zclock_sleep (500);
 
     // to prevent false positives in memcheck - there should not be any messages in a broker
     // on the end of the run
-    zpoller_t *poller = zpoller_new (mlm_client_msgpipe (consumer), mlm_client_msgpipe (producer), NULL);
+    zpoller_t *poller = zpoller_new (mlm_client_msgpipe (consumer_5s), mlm_client_msgpipe (consumer_1s), NULL);
     while (!zsys_interrupted) {
-        void *which = zpoller_wait (poller, 1000);
+        void *which = zpoller_wait (poller, 500);
 
         if (!which)
             break;
-        
-        msg = mlm_client_recv (consumer);
+        else
+        if (which == mlm_client_msgpipe (consumer_1s))
+            msg = mlm_client_recv (consumer_1s);
+        else
+        if (which == mlm_client_msgpipe (consumer_5s))
+            msg = mlm_client_recv (consumer_5s);
+
         zmsg_destroy (&msg);
     }
     zpoller_destroy (&poller);
 
     zactor_destroy (&cm_server);
-    mlm_client_destroy (&consumer);
+    mlm_client_destroy (&consumer_5s);
+    mlm_client_destroy (&consumer_1s);
     mlm_client_destroy (&producer);
     zactor_destroy (&server);
 
