@@ -53,44 +53,42 @@ s_duplicator (const void *self)
 static void
 s_min (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
 {
-    uint64_t bmsg_value = atol (bios_proto_value ((bios_proto_t*) bmsg));
+    double bmsg_value = atof (bios_proto_value ((bios_proto_t*) bmsg));
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
-    uint64_t stat_value = atol (bios_proto_value (stat_msg));
-
+    double stat_value = atof (bios_proto_value (stat_msg));
     if (count == 0
     || (bmsg_value < stat_value)) {
-        bios_proto_set_value (stat_msg, "%"PRIu64, bmsg_value);
+        bios_proto_set_value (stat_msg, "%f", bmsg_value);
     }
 }
 
 static void
 s_max (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
 {
-    uint64_t bmsg_value = atol (bios_proto_value ((bios_proto_t*) bmsg));
+    double bmsg_value = atof (bios_proto_value ((bios_proto_t*) bmsg));
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
-    uint64_t stat_value = atol (bios_proto_value (stat_msg));
+    double stat_value = atof (bios_proto_value (stat_msg));
 
     if (count == 0
     || (bmsg_value > stat_value)) {
-        bios_proto_set_value (stat_msg, "%"PRIu64, bmsg_value);
+        bios_proto_set_value (stat_msg, "%f", bmsg_value);
     }
 }
 
 static void
 s_arithmetic_mean (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
 {
-    uint64_t value = atol (bios_proto_value ((bios_proto_t*) bmsg));
+    double value = atof (bios_proto_value ((bios_proto_t*) bmsg));
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
-    uint64_t sum = bios_proto_aux_number (stat_msg, AGENT_CM_SUM, 0);
-
+    double sum = atof (bios_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"));
+   
     // 0 means that we have first value
     if (count == 0)
         sum = value;
     else
         sum += value;
-
-    bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%"PRIu64, sum);
-    bios_proto_set_value (stat_msg, "%f", ((double)sum) / (count+1) );
+    bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%f", sum);
+    bios_proto_set_value (stat_msg, "%f", (sum / (count+1)) );
 }
 
 //  --------------------------------------------------------------------------
@@ -144,7 +142,7 @@ cmstats_print (cmstats_t *self)
 }
 
 //  --------------------------------------------------------------------------
-// Compute the $type value for given step - if the interval is over and new metric
+// Compute the $type value for given step - the computation justs starts or new metric
 // is already inside the interval, NULL is returned
 // Otherwise new bios_proto_t metric is returned. Caller is responsible for
 // destroying the value.
@@ -153,6 +151,9 @@ cmstats_print (cmstats_t *self)
 // * min - to find a minimum value inside given interval
 // * max - for find a maximum value
 // * arithmetic_mean - to compute arithmetic mean
+// 
+// * step - in [s]
+// * bmsg - message with received new RAW value
 //
 bios_proto_t *
 cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step, bios_proto_t *bmsg)
@@ -181,16 +182,14 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
 
     // handle the first insert
     if (!stat_msg) {
-
         stat_msg = bios_proto_dup (bmsg);
         bios_proto_set_type (stat_msg, "%s_%s_%s",
             bios_proto_type (bmsg),
             type,
             sstep);
-
         bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now_s);
         bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
-        bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, bios_proto_value (stat_msg));
+        bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, bios_proto_value (stat_msg)); // insert value as string into string
         bios_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", type);
         bios_proto_aux_insert (stat_msg, AGENT_CM_STEP, "%"PRIu32, step);
         bios_proto_set_ttl (stat_msg, 2 * step);
@@ -206,7 +205,7 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
     uint64_t stat_now_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
 
     // it is, return the stat value and "restart" the computation
-    if ((now_ms - (stat_now_s * 1000)) >= (step * 1000)) {
+    if ( ((now_ms - (stat_now_s * 1000)) >= (step * 1000)) ) {
         bios_proto_t *ret = bios_proto_dup (stat_msg);
 
         bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now_s);
@@ -214,7 +213,6 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
         bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");
 
         bios_proto_set_value (stat_msg, bios_proto_value (bmsg));
-
         return ret;
     }
 
@@ -446,36 +444,36 @@ cmstats_test (bool verbose)
             NULL,
             "TYPE",
             "ELEMENT_SRC",
-            "100",
+            "100.99",
             "UNIT",
             10);
     bios_proto_t *bmsg = bios_proto_decode (&msg);
     bios_proto_t *stats = NULL;
 
-    stats = cmstats_put (self, "min", "1", 1, bmsg);
+    stats = cmstats_put (self, "min", "1s", 1, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "max", "1", 1, bmsg);
+    stats = cmstats_put (self, "max", "1s", 1, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "arithmetic_mean", "1", 1, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "1s", 1, bmsg);
     assert (!stats);
     bios_proto_destroy (&bmsg);
-    zclock_sleep (500);
 
     //  1.2 second metric (inside interval) in
     msg = bios_proto_encode_metric (
             NULL,
             "TYPE",
             "ELEMENT_SRC",
-            "42",
+            "42.1",
             "UNIT",
             10);
     bmsg = bios_proto_decode (&msg);
 
-    stats = cmstats_put (self, "min", "1", 1, bmsg);
+    zclock_sleep (500);
+    stats = cmstats_put (self, "min", "1s", 1, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "max", "1", 1, bmsg);
+    stats = cmstats_put (self, "max", "1s", 1, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "arithmetic_mean", "1", 1, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "1s", 1, bmsg);
     assert (!stats);
     bios_proto_destroy (&bmsg);
     
@@ -486,35 +484,37 @@ cmstats_test (bool verbose)
             NULL,
             "TYPE",
             "ELEMENT_SRC",
-            "42",
+            "42.88",
             "UNIT",
             10);
     bmsg = bios_proto_decode (&msg);
 
     //  1.4 check the minimal value
-    stats = cmstats_put (self, "min", "1", 1, bmsg);
+    stats = cmstats_put (self, "min", "1s", 1, bmsg);
     assert (stats);
     if (verbose)
         bios_proto_print (stats);
-    assert (streq (bios_proto_value (stats), "42"));
+    assert (streq (bios_proto_value (stats), "42.100000"));
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&stats);
 
     //  1.5 check the maximum value
-    stats = cmstats_put (self, "max", "1", 1, bmsg);
+    stats = cmstats_put (self, "max", "1s", 1, bmsg);
     assert (stats);
     if (verbose)
         bios_proto_print (stats);
-    assert (streq (bios_proto_value (stats), "100"));
+    assert (streq (bios_proto_value (stats), "100.99"));
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&stats);
 
     //  1.6 check the arithmetic_mean
-    stats = cmstats_put (self, "arithmetic_mean", "1", 1, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "1s", 1, bmsg);
     assert (stats);
     if (verbose)
         bios_proto_print (stats);
-    assert (atof (bios_proto_value (stats)) == (100.0+42) / 2);
+    zsys_info ("avg real: %s", bios_proto_value (stats) );
+    zsys_info ("avg expected: %f", (100.99+42.1) / 2 );
+    assert (atof (bios_proto_value (stats)) == (100.99+42.1) / 2);
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&bmsg);
     bios_proto_destroy (&stats);
@@ -526,10 +526,10 @@ cmstats_test (bool verbose)
     // TRIVIA: extend the testing of self->stats
     //         hint is - uncomment the print :)
     //cmstats_print (self);
-    assert (zhashx_lookup (self->stats, "TYPE_max_1@ELEMENT_SRC"));
+    assert (zhashx_lookup (self->stats, "TYPE_max_1s@ELEMENT_SRC"));
 
     cmstats_delete_dev (self, "ELEMENT_SRC");
-    assert (!zhashx_lookup (self->stats, "TYPE_max_1@ELEMENT_SRC"));
+    assert (!zhashx_lookup (self->stats, "TYPE_max_1s@ELEMENT_SRC"));
 
     cmstats_destroy (&self);
     unlink (file);
