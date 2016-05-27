@@ -167,7 +167,7 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
     //    for 12:16:29 / step 60*60 return 12:00:00
     //    ... etc
     // works well for any value of step
-    uint64_t now_s = (now_ms - (now_ms % step)) / 1000;
+    uint64_t now_s = (now_ms - (now_ms % (step * 1000))) / 1000;
 
     char *key;
     int r = asprintf (&key, "%s_%s_%s@%s",
@@ -288,7 +288,7 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
 
         uint64_t stat_now_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
         uint64_t step = bios_proto_aux_number (stat_msg, AGENT_CM_STEP, 0);
-        uint64_t now_s = (now_ms - (now_ms % step)) / 1000;
+        uint64_t now_s = (now_ms - (now_ms % (step * 1000))) / 1000;
 
         if (verbose)
             zsys_debug ("cmstats_poll: key=%s\n\tnow_ms=%"PRIu64 ", now_s=%"PRIu64 ", stat_now_s=%"PRIu64 ", (now_ms - (stat_now_s * 1000))=%" PRIu64 ", step*1000=%"PRIu32,
