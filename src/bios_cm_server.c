@@ -213,7 +213,7 @@ bios_cm_server (zsock_t *pipe, void *args)
                 {
                     int r = mlm_client_connect (self->client, endpoint, 5000, client_name);
                     if (r == -1)
-                        zsys_error ("%s:\tConnection to endpoint '%' failed", self->name);
+                        zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name);
 
                 }
                 zstr_free (&client_name);
