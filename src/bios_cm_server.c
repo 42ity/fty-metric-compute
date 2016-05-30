@@ -28,17 +28,21 @@
 
 #include "agent_cm_classes.h"
 
-// TODO: move to class sometime ???
+// TODO: move to class sometime
+// It is a "CM" entity
 typedef struct _cm_t {
-    bool verbose; // is server verbose or not
-    char *name;   // server name
-    cmstats_t *stats; // statistics (min, max, averages, ...)
-    cmsteps_t *steps; // info about steps
-    zlist_t *types; // info about types to compute
-    mlm_client_t *client; // malamute client
-    char *filename; // state file
+    bool verbose;           // is server verbose or not
+    char *name;             // server name
+    cmstats_t *stats;       // computed statictics for all types and steps
+    cmsteps_t *steps;       // info about supported steps
+    zlist_t *types;         // info about supported statistic types (min, max, avg)
+    mlm_client_t *client;   // malamute client
+    char *filename;         // state file name
 } cm_t;
 
+/*
+ * \brief Create new empty not verbose "CM" entity
+ */
 cm_t*
 cm_new (const char* name)
 {
@@ -67,6 +71,9 @@ cm_new (const char* name)
     return self;
 }
 
+/*
+ * \brief Destroy the "CM" entity
+ */
 void
 cm_destroy (cm_t **self_p)
 {
@@ -94,28 +101,34 @@ cm_destroy (cm_t **self_p)
 void
 bios_cm_server (zsock_t *pipe, void *args)
 {
+
     cm_t *self = cm_new ((const char*) args);
 
     zpoller_t *poller = zpoller_new (pipe, mlm_client_msgpipe (self->client), NULL);
+
+    // do not forget to send a signal to actor :)
     zsock_signal (pipe, 0);
+
+    // Time in [ms] when last cmstats_poll was called
+    // -1 means it was never called yet
+    int64_t last_poll_ms = -1;
     while (!zsys_interrupted)
     {
-        int64_t last_poll = -1; // [ms]
-        int interval = -1; //[ms]
+        int interval_ms = -1; //[ms]
         if (cmsteps_gcd (self->steps) != 0) {
             int64_t now = zclock_time () / 1000; // [s]
             // find next nearest interval to compute some average
-            interval = (cmsteps_gcd (self->steps) - (now % cmsteps_gcd (self->steps))) * 1000;
+            interval_ms = (cmsteps_gcd (self->steps) - (now % cmsteps_gcd (self->steps))) * 1000;
             if (self->verbose)
                 zsys_debug ("%s:\tnow=%"PRIu64 "s, cmsteps_gcd=%"PRIu32 "s, interval=%dms",
                         self->name,
                         now,
                         cmsteps_gcd (self->steps),
-                        interval
+                        interval_ms
                         );
         }
 
-        void *which = zpoller_wait (poller, interval);
+        void *which = zpoller_wait (poller, interval_ms);
 
         if (!which && zpoller_terminated (poller))
             break;
@@ -123,7 +136,7 @@ bios_cm_server (zsock_t *pipe, void *args)
         // poll when zpoller expired
         // TODO: is the second condition necessary??
         if ((!which && zpoller_expired (poller))
-        ||  (last_poll > 0 &&  ( (zclock_time () - last_poll) > cmsteps_gcd (self->steps) * 1000 )) ) {
+        ||  (last_poll_ms > 0 &&  ( (zclock_time () - last_poll_ms) > cmsteps_gcd (self->steps) * 1000 )) ) {
 
             if (self->verbose) {
                 if (zpoller_expired (poller))
@@ -142,7 +155,7 @@ bios_cm_server (zsock_t *pipe, void *args)
                     if (self->verbose)
                         zsys_info ("%s:\t'%s' saved succesfully", self->name, self->filename);
             }
-            last_poll = zclock_time ();
+            last_poll_ms = zclock_time ();
             continue;
         }
 
