@@ -114,27 +114,42 @@ bios_cm_server (zsock_t *pipe, void *args)
     int64_t last_poll_ms = -1;
     while (!zsys_interrupted)
     {
-        int interval_ms = -1; //[ms]
+        // What time left before publishing?
+        // If steps where not defined ( cmsteps_gcd == 0 ) then nothing to publish,
+        // so, we can wait forever (-1) for first message to come
+        // in [ms]
+        int interval_ms = -1;
         if (cmsteps_gcd (self->steps) != 0) {
-            int64_t now = zclock_time () / 1000; // [s]
-            // find next nearest interval to compute some average
+            // So, some steps where defined
+
+            // What is the "now" time in [s]
+            int64_t now_s = zclock_time () / 1000;
+
+            // length_of_the_minimal_interval - part_of_interval_already_passed
             interval_ms = (cmsteps_gcd (self->steps) - (now % cmsteps_gcd (self->steps))) * 1000;
             if (self->verbose)
                 zsys_debug ("%s:\tnow=%"PRIu64 "s, cmsteps_gcd=%"PRIu32 "s, interval=%dms",
                         self->name,
-                        now,
+                        now_s,
                         cmsteps_gcd (self->steps),
                         interval_ms
                         );
         }
 
+        // wait for interval left
         void *which = zpoller_wait (poller, interval_ms);
 
         if (!which && zpoller_terminated (poller))
             break;
 
         // poll when zpoller expired
-        // TODO: is the second condition necessary??
+        // the second condition necessary
+        //
+        //  X2 is an expected moment when some metrics should be published
+        //  in t=X1 message comes, its processing takes time and cycle will begin from the beginning
+        //  at moment X4, but in X3 some message had already come -> so zpoller_expired(poller) == false 
+        //
+        // -NOW----X1------X2---X3--X4-----
         if ((!which && zpoller_expired (poller))
         ||  (last_poll_ms > 0 &&  ( (zclock_time () - last_poll_ms) > cmsteps_gcd (self->steps) * 1000 )) ) {
 
@@ -144,19 +159,25 @@ bios_cm_server (zsock_t *pipe, void *args)
                 else
                     zsys_debug ("%s:\ttime (not zpoller) expired, calling cmstats_poll", self->name);
             }
-
+            // Publish metrics and reset the computation where needed 
             cmstats_poll (self->stats, self->client, self->verbose);
-	    
+            // State is saved every time, when something is published
+            // Something is published every "steps_gcd" interval
+            // In the most of the cases (steps_gcd = "minimal_interval")
             if (self->filename) {
                 int r = cmstats_save (self->stats, self->filename);
                 if (r == -1)
-                    zsys_error ("%s:\t failed to save %s: %s", self->name, self->filename, strerror (errno));
+                    zsys_error ("%s:\tfailed to save %s: %s", self->name, self->filename, strerror (errno));
                 else
                     if (self->verbose)
                         zsys_info ("%s:\t'%s' saved succesfully", self->name, self->filename);
             }
+            // Record the time, when something was published last time
             last_poll_ms = zclock_time ();
-            continue;
+            // if poller expired, we can continue in order to wait for new message
+            if ( !which && zpoller_expired (poller) )
+                continue;
+            // else if poller not expired, we need to process the message!!
         }
 
         if (which == pipe)
