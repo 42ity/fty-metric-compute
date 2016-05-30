@@ -126,7 +126,7 @@ bios_cm_server (zsock_t *pipe, void *args)
             int64_t now_s = zclock_time () / 1000;
 
             // length_of_the_minimal_interval - part_of_interval_already_passed
-            interval_ms = (cmsteps_gcd (self->steps) - (now % cmsteps_gcd (self->steps))) * 1000;
+            interval_ms = (cmsteps_gcd (self->steps) - (now_s % cmsteps_gcd (self->steps))) * 1000;
             if (self->verbose)
                 zsys_debug ("%s:\tnow=%"PRIu64 "s, cmsteps_gcd=%"PRIu32 "s, interval=%dms",
                         self->name,
