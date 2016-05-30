@@ -210,7 +210,7 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
 
         bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now_s);
         bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
-        bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");
+        bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, bios_proto_value (stat_msg));
 
         bios_proto_set_value (stat_msg, bios_proto_value (bmsg));
         return ret;
