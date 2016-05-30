@@ -123,7 +123,7 @@ bios_cm_server (zsock_t *pipe, void *args)
         // poll when zpoller expired
         // TODO: is the second condition necessary??
         if ((!which && zpoller_expired (poller))
-        ||  (last_poll > 0 && (zclock_time () - last_poll) > cmsteps_gcd (self->steps))) {
+        ||  (last_poll > 0 &&  ( (zclock_time () - last_poll) > cmsteps_gcd (self->steps) * 1000 )) ) {
 
             if (self->verbose) {
                 if (zpoller_expired (poller))

@@ -31,8 +31,8 @@
 //  Structure of our class
 
 struct _cmsteps_t {
-    zhashx_t *steps;
-    uint32_t gcd;
+    zhashx_t *steps; // in [s]
+    uint32_t gcd; // in [s]
 };
 
 static void s_desctructor (void **item_p)
@@ -141,7 +141,7 @@ s_cmsteps_gcd (cmsteps_t *self)
 
 //  --------------------------------------------------------------------------
 //  Return greatest common divisor of steps - 0 means no steps are in a list
-
+// in [s]
 uint32_t
 cmsteps_gcd (cmsteps_t *self)
 {
