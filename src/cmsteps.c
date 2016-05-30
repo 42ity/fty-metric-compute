@@ -273,6 +273,8 @@ cmsteps_test (bool verbose)
     assert (cmsteps_toint ("42X") == -1);
     assert (cmsteps_toint ("-42") == -1);
 
+    assert (cmsteps_toint ("24h") == cmsteps_toint ("1d"));
+
     //  @end
     printf ("OK\n");
 }
