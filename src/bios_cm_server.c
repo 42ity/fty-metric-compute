@@ -308,6 +308,7 @@ bios_cm_server (zsock_t *pipe, void *args)
 
         // If we received a metric message
         // update statistics for all steps and types
+        // All statistics are computed for "left side of the interval"
         if ( bios_proto_id (bmsg) == BIOS_PROTO_METRIC ) {
             for (uint32_t *step_p = cmsteps_first (self->steps);
                     step_p != NULL;
@@ -326,7 +327,10 @@ bios_cm_server (zsock_t *pipe, void *args)
                         assert (subject);
 
                         zmsg_t *msg = bios_proto_encode (&stat_msg);
-                        mlm_client_send (self->client, subject, &msg);
+                        int r = mlm_client_send (self->client, subject, &msg);
+                        if ( r == -1 ) {
+                            zsys_error ("%s:\tCannot publish statistics", self->name);
+                        }
                         zstr_free (&subject);
                     }
                 }
@@ -346,10 +350,10 @@ bios_cm_server (zsock_t *pipe, void *args)
     if (self->filename) {
         int r = cmstats_save (self->stats, self->filename);
         if (r == -1)
-            zsys_error ("%s:\t failed to save %s: %s", self->name, self->filename, strerror (errno));
+            zsys_error ("%s:\tFailed to save '%s': %s", self->name, self->filename, strerror (errno));
         else
             if (self->verbose)
-                zsys_info ("%s:\t'%s' saved succesfully", self->name, self->filename);
+                zsys_info ("%s:\tSaved succesfully '%s'", self->name, self->filename);
     }
 
     cm_destroy (&self);
