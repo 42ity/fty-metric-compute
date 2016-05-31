@@ -238,12 +238,12 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
 }
 
 //  --------------------------------------------------------------------------
-//  Remove all the entries related to device dev from stats
+//  Remove all the entries related to the asset wiht asset_name from stats
 void
-cmstats_delete_dev (cmstats_t *self, const char *dev)
+cmstats_delete_asset (cmstats_t *self, const char *asset_name)
 {
     assert (self);
-    assert (dev);
+    assert (asset_name);
 
     zlist_t *keys = zlist_new ();
     // no autofree here, this list constains only _references_ to keys,
@@ -254,7 +254,7 @@ cmstats_delete_dev (cmstats_t *self, const char *dev)
                        stat_msg = (bios_proto_t*) zhashx_next (self->stats))
     {
         const char* key = (const char*) zhashx_cursor (self->stats);
-        if (streq (bios_proto_element_src (stat_msg), dev))
+        if (streq (bios_proto_element_src (stat_msg), asset_name))
             zlist_append (keys, (void*) key);
     }
 
@@ -538,7 +538,7 @@ cmstats_test (bool verbose)
     //cmstats_print (self);
     assert (zhashx_lookup (self->stats, "TYPE_max_1s@ELEMENT_SRC"));
 
-    cmstats_delete_dev (self, "ELEMENT_SRC");
+    cmstats_delete_asset (self, "ELEMENT_SRC");
     assert (!zhashx_lookup (self->stats, "TYPE_max_1s@ELEMENT_SRC"));
 
     cmstats_destroy (&self);
