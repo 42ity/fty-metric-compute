@@ -319,7 +319,7 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
             zmsg_t *msg = bios_proto_encode (&ret);
             int r = mlm_client_send (client, key, &msg);
             if ( r == -1 ) {
-                zsys_error ("%s:\tCannot publish statistics", self->name);
+                zsys_error ("cmstats:\tCannot publish statistics");
             }
         }
     }
