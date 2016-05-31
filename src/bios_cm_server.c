@@ -275,6 +275,7 @@ bios_cm_server (zsock_t *pipe, void *args)
                 for (;;)
                 {
                     char *foo = zmsg_popstr (msg);
+                    // TODO: may be we need some check here for supported types
                     if (!foo)
                         break;
                     zlist_append (self->types, foo);
@@ -287,12 +288,15 @@ bios_cm_server (zsock_t *pipe, void *args)
             zstr_free (&command);
             zmsg_destroy (&msg);
             continue;
-        }
+        } // end of comand pipe processing
 
         zmsg_t *msg = mlm_client_recv (self->client);
         bios_proto_t *bmsg = bios_proto_decode (&msg);
 
-        if (streq (mlm_client_address (self->client), BIOS_PROTO_STREAM_ASSETS)) {
+        // If we received an asset message 
+        // * "delete" or "retire"  -> drop all computations on that asset 
+        // *  other                -> ignore it, as it doesn't impact this agent
+        if ( bios_proto_id (bmsg) == BIOS_PROTO_ASSET ) {
             const char *op = bios_proto_operation (bmsg);
             if (streq (op, "delete")
             ||  streq (op, "retire"))
@@ -302,28 +306,38 @@ bios_cm_server (zsock_t *pipe, void *args)
             continue;
         }
 
-        for (uint32_t *step_p = cmsteps_first (self->steps);
-                       step_p != NULL;
-                       step_p = cmsteps_next (self->steps))
-        {
-            for (const char *type = (const char*) zlist_first (self->types);
-                             type != NULL;
-                             type = (const char*) zlist_next (self->types))
+        // If we received a metric message
+        // update statistics for all steps and types
+        if ( bios_proto_id (bmsg) == BIOS_PROTO_METRIC ) {
+            for (uint32_t *step_p = cmsteps_first (self->steps);
+                    step_p != NULL;
+                    step_p = cmsteps_next (self->steps))
             {
-                const char *step = (const char*) cmsteps_cursor (self->steps);
-                bios_proto_t *stat_msg = cmstats_put (self->stats, type, step, *step_p, bmsg);
-                if (stat_msg) {
-                    char *subject = zsys_sprintf ("%s@%s",
-                            bios_proto_type (stat_msg),
-                            bios_proto_element_src (stat_msg));
-                    assert (subject);
+                for (const char *type = (const char*) zlist_first (self->types);
+                        type != NULL;
+                        type = (const char*) zlist_next (self->types))
+                {
+                    const char *step = (const char*) cmsteps_cursor (self->steps);
+                    bios_proto_t *stat_msg = cmstats_put (self->stats, type, step, *step_p, bmsg);
+                    if (stat_msg) {
+                        char *subject = zsys_sprintf ("%s@%s",
+                                bios_proto_type (stat_msg),
+                                bios_proto_element_src (stat_msg));
+                        assert (subject);
 
-                    zmsg_t *msg = bios_proto_encode (&stat_msg);
-                    mlm_client_send (self->client, subject, &msg);
-                    zstr_free (&subject);
+                        zmsg_t *msg = bios_proto_encode (&stat_msg);
+                        mlm_client_send (self->client, subject, &msg);
+                        zstr_free (&subject);
+                    }
                 }
             }
+            bios_proto_destroy (&bmsg);
+            continue;
         }
+
+        // We received some unexpected message
+        zsys_warning ("%s:\tUnexpected message from sender=%s, subject=%s",
+                self->name, mlm_client_sender(self->client), mlm_client_subject(self->client));
 
         bios_proto_destroy (&bmsg);
     }
