@@ -382,7 +382,7 @@ cmstats_load (const char *filename)
         bios_proto_set_element_src (bmsg, zconfig_get (key_config, "element_src", ""));
         bios_proto_set_value (bmsg, zconfig_get (key_config, "value", ""));
         bios_proto_set_unit (bmsg, zconfig_get (key_config, "unit", ""));
-        bios_proto_set_ttl (bmsg, atoi (zconfig_get (key_config, "unit", "0")));
+        bios_proto_set_ttl (bmsg, atoi (zconfig_get (key_config, "ttl", "0")));
 
         // 2. put aux things
         zconfig_t *bmsg_config = zconfig_child (key_config);
