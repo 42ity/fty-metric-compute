@@ -66,7 +66,7 @@ AGENT_CM_EXPORT void
 AGENT_CM_EXPORT int
     cmstats_save (cmstats_t *self, const char *filename);
 
-//  Load the cmstats from filename
+//  Load the cmstats from filename, return NULL if fail
 AGENT_CM_EXPORT cmstats_t *
     cmstats_load (const char *filename);
 

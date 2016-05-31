@@ -202,10 +202,10 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
 
     // there is already some value
     // so check if it's not already older than we need
-    uint64_t stat_now_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
+    uint64_t metric_time_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
 
     // it is, return the stat value and "restart" the computation
-    if ( ((now_ms - (stat_now_s * 1000)) >= (step * 1000)) ) {
+    if ( ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) ) {
         bios_proto_t *ret = bios_proto_dup (stat_msg);
 
         bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now_s);
@@ -276,29 +276,32 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
     assert (self);
     assert (client);
 
+    // What is it time now? [ms]
     uint64_t now_ms = (uint64_t) zclock_time ();
 
     for (bios_proto_t *stat_msg = (bios_proto_t*) zhashx_first (self->stats);
                        stat_msg != NULL;
                        stat_msg = (bios_proto_t*) zhashx_next (self->stats))
     {
+        // take a key, actually it is the future subject of the message
         const char* key = (const char*) zhashx_cursor (self->stats);
 
-        uint64_t stat_now_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
+        // What is an assigned time for the metric ( in our case it is a left margin in the interval)
+        uint64_t metric_time_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
         uint64_t step = bios_proto_aux_number (stat_msg, AGENT_CM_STEP, 0);
         uint64_t now_s = (now_ms - (now_ms % (step * 1000))) / 1000;
 
         if (verbose)
-            zsys_debug ("cmstats_poll: key=%s\n\tnow_ms=%"PRIu64 ", now_s=%"PRIu64 ", stat_now_s=%"PRIu64 ", (now_ms - (stat_now_s * 1000))=%" PRIu64 ", step*1000=%"PRIu32,
+            zsys_debug ("cmstats_poll: key=%s\n\tnow_ms=%"PRIu64 ", now_s=%"PRIu64 ", metric_time_s=%"PRIu64 ", (now_ms - (metric_time_s * 1000))=%" PRIu64 ", step*1000=%"PRIu32,
             key,
             now_ms,
             now_s,
-            stat_now_s,
-            (now_ms - stat_now_s * 1000),
+            metric_time_s,
+            (now_ms - metric_time_s * 1000),
             step * 1000);
 
         // it is, return the stat value and "restart" the computation
-        if ((now_ms - (stat_now_s * 1000)) >= (step * 1000)) {
+        if ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) {
             bios_proto_t *ret = bios_proto_dup (stat_msg);
 
             bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now_s);
@@ -371,6 +374,8 @@ cmstats_load (const char *filename)
         return NULL;
 
     cmstats_t *self = cmstats_new ();
+    if (!self)
+        return NULL;
     zconfig_t *key_config = zconfig_child (root);
     for (; key_config != NULL; key_config = zconfig_next (key_config))
     {
