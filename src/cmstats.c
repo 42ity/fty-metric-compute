@@ -168,7 +168,7 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
     //    for 12:16:29 / step 60*60 return 12:00:00
     //    ... etc
     // works well for any value of step
-    uint64_t now_s = (now_ms - (now_ms % (step * 1000))) / 1000;
+    uint64_t metric_time_new_s = (now_ms - (now_ms % (step * 1000))) / 1000;
 
     char *key;
     int r = asprintf (&key, "%s_%s_%s@%s",
@@ -187,7 +187,7 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
             bios_proto_type (bmsg),
             type,
             sstep);
-        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now_s);
+        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
         bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, bios_proto_value (stat_msg)); // insert value as string into string
         bios_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", type);
@@ -208,7 +208,7 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
     if ( ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) ) {
         bios_proto_t *ret = bios_proto_dup (stat_msg);
 
-        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now_s);
+        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
         bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, bios_proto_value (stat_msg));
 
@@ -289,29 +289,31 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
         // What is an assigned time for the metric ( in our case it is a left margin in the interval)
         uint64_t metric_time_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
         uint64_t step = bios_proto_aux_number (stat_msg, AGENT_CM_STEP, 0);
-        uint64_t now_s = (now_ms - (now_ms % (step * 1000))) / 1000;
+        // What SHOULD be an assigned time for the NEW stat metric (in our case it is a left margin in the NEW interval)
+        uint64_t metric_time_new_s = (now_ms - (now_ms % (step * 1000))) / 1000;
 
         if (verbose)
-            zsys_debug ("cmstats_poll: key=%s\n\tnow_ms=%"PRIu64 ", now_s=%"PRIu64 ", metric_time_s=%"PRIu64 ", (now_ms - (metric_time_s * 1000))=%" PRIu64 ", step*1000=%"PRIu32,
+            zsys_debug ("cmstats_poll: key=%s\n\tnow_ms=%"PRIu64 ", metric_time_new_s=%"PRIu64 ", metric_time_s=%"PRIu64 ", (now_ms - (metric_time_s * 1000))=%" PRIu64 "s, step*1000=%"PRIu32 "ms",
             key,
             now_ms,
-            now_s,
+            metric_time_new_s,
             metric_time_s,
             (now_ms - metric_time_s * 1000),
             step * 1000);
 
-        // it is, return the stat value and "restart" the computation
+        // Should this metic be publish and computation restarted?
         if ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) {
+            // Yes it should!
             bios_proto_t *ret = bios_proto_dup (stat_msg);
 
-            bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now_s);
-            bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "0");
-            bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");
+            bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
+            bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "0"); // As we do not receive any message, start from ZERO
+            bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");  // As we do not receive any message, start from ZERO
 
-            bios_proto_set_value (stat_msg, "0");
+            bios_proto_set_value (stat_msg, "0");  // As we do not receive any message, start from ZERO
 
             if (verbose) {
-                zsys_debug ("cmstats:\tpublish message, subject=%s", key);
+                zsys_debug ("cmstats:\tPublishing message wiht subject=%s", key);
                 bios_proto_print (ret);
             }
             zmsg_t *msg = bios_proto_encode (&ret);
