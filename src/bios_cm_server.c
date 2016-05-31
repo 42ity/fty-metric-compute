@@ -194,7 +194,7 @@ bios_cm_server (zsock_t *pipe, void *args)
             }
             else
             if (streq (command, "VERBOSE")) {
-                self->verbose=true;
+                self->verbose = true;
                 zsys_debug ("%s:\tVERBOSE", self->name);
             }
             else
@@ -206,13 +206,15 @@ bios_cm_server (zsock_t *pipe, void *args)
                 if (zfile_exists (self->filename)) {
                     cmstats_t *foo = cmstats_load (self->filename);
                     if (!foo)
-                        zsys_error ("%s:\tFailed to load %s", self->name, self->filename);
+                        zsys_error ("%s:\tFailed to load '%s'", self->name, self->filename);
                     else {
                         if (self->verbose)
-                            zsys_info ("%s:\tLoaded %s", self->name, self->filename);
+                            zsys_info ("%s:\tLoaded '%s'", self->name, self->filename);
                         cmstats_destroy (&self->stats);
                         self->stats = foo;
                     }
+                } else {
+                    zsys_info ("%s:\tState file '%s' doesn't exists", self->name, self->filename);
                 }
 
                 zfile_destroy (&f);
@@ -223,7 +225,7 @@ bios_cm_server (zsock_t *pipe, void *args)
                 char* stream = zmsg_popstr (msg);
                 int r = mlm_client_set_producer (self->client, stream);
                 if (r == -1)
-                    zsys_error ("%s: can't set producer on stream '%s'", self->name, stream);
+                    zsys_error ("%s:\tCan't set producer on stream '%s'", self->name, stream);
                 zstr_free (&stream);
             }
             else
@@ -232,7 +234,7 @@ bios_cm_server (zsock_t *pipe, void *args)
                 char* pattern = zmsg_popstr (msg);
                 int rv = mlm_client_set_consumer (self->client, stream, pattern);
                 if (rv == -1)
-                    zsys_error ("%s: can't set consumer on stream '%s', '%s'", self->name, stream, pattern);
+                    zsys_error ("%s:\tCan't set consumer on stream '%s', '%s'", self->name, stream, pattern);
                 zstr_free (&pattern);
                 zstr_free (&stream);
             }
@@ -242,7 +244,7 @@ bios_cm_server (zsock_t *pipe, void *args)
                 char *endpoint = zmsg_popstr (msg);
                 char *client_name = zmsg_popstr (msg);
                 if (!endpoint || !client_name)
-                    zsys_error ("%s:\tmissing endpoint or name", self->name);
+                    zsys_error ("%s:\tMissing endpoint or name", self->name);
                 else
                 {
                     int r = mlm_client_connect (self->client, endpoint, 5000, client_name);
@@ -263,7 +265,7 @@ bios_cm_server (zsock_t *pipe, void *args)
                         break;
                     int r = cmsteps_put (self->steps, foo);
                     if (r == -1)
-                        zsys_info ("%s:\tignoring unrecognized step='%s'", self->name, foo);
+                        zsys_info ("%s:\tIgnoring unrecognized step='%s'", self->name, foo);
                     zstr_free (&foo);
                 }
             }
@@ -280,7 +282,7 @@ bios_cm_server (zsock_t *pipe, void *args)
                 }
             }
             else
-                zsys_warning ("%s:\tunkown API command=%s, ignoring", self->name, command);
+                zsys_warning ("%s:\tUnkown API command=%s, ignoring", self->name, command);
 
             zstr_free (&command);
             zmsg_destroy (&msg);
@@ -324,8 +326,8 @@ bios_cm_server (zsock_t *pipe, void *args)
         }
 
         bios_proto_destroy (&bmsg);
-
     }
+    // end of main loop, so we are going to die soon
 
     if (self->filename) {
         int r = cmstats_save (self->stats, self->filename);

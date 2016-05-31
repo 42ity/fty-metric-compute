@@ -70,10 +70,8 @@ int main (int argc, char *argv [])
     && streq (getenv ("BIOS_LOG_LEVEL"), "LOG_DEBUG"))
         verbose = true;
 
-    //  Insert main code here
     if (verbose)
         zsys_info ("START: bios_agent_cm - starting at endpoint=%s", endpoint);
-
 
     zactor_t *cm_server = zactor_new (bios_cm_server, "bios-agent-cm");
     if (verbose)
