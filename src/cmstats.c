@@ -168,7 +168,7 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
     //    for 12:16:29 / step 60*60 return 12:00:00
     //    ... etc
     // works well for any value of step
-    uint64_t now_s = (now_ms - (now_ms % (step * 1000))) / 1000;
+    uint64_t metric_time_new_s = (now_ms - (now_ms % (step * 1000))) / 1000;
 
     char *key;
     int r = asprintf (&key, "%s_%s_%s@%s",
@@ -187,7 +187,7 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
             bios_proto_type (bmsg),
             type,
             sstep);
-        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now_s);
+        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
         bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, bios_proto_value (stat_msg)); // insert value as string into string
         bios_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", type);
@@ -202,13 +202,13 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
 
     // there is already some value
     // so check if it's not already older than we need
-    uint64_t stat_now_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
+    uint64_t metric_time_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
 
     // it is, return the stat value and "restart" the computation
-    if ( ((now_ms - (stat_now_s * 1000)) >= (step * 1000)) ) {
+    if ( ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) ) {
         bios_proto_t *ret = bios_proto_dup (stat_msg);
 
-        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now_s);
+        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
         bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, bios_proto_value (stat_msg));
 
@@ -238,12 +238,12 @@ cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step
 }
 
 //  --------------------------------------------------------------------------
-//  Remove all the entries related to device dev from stats
+//  Remove all the entries related to the asset wiht asset_name from stats
 void
-cmstats_delete_dev (cmstats_t *self, const char *dev)
+cmstats_delete_asset (cmstats_t *self, const char *asset_name)
 {
     assert (self);
-    assert (dev);
+    assert (asset_name);
 
     zlist_t *keys = zlist_new ();
     // no autofree here, this list constains only _references_ to keys,
@@ -254,7 +254,7 @@ cmstats_delete_dev (cmstats_t *self, const char *dev)
                        stat_msg = (bios_proto_t*) zhashx_next (self->stats))
     {
         const char* key = (const char*) zhashx_cursor (self->stats);
-        if (streq (bios_proto_element_src (stat_msg), dev))
+        if (streq (bios_proto_element_src (stat_msg), asset_name))
             zlist_append (keys, (void*) key);
     }
 
@@ -276,43 +276,51 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
     assert (self);
     assert (client);
 
+    // What is it time now? [ms]
     uint64_t now_ms = (uint64_t) zclock_time ();
 
     for (bios_proto_t *stat_msg = (bios_proto_t*) zhashx_first (self->stats);
                        stat_msg != NULL;
                        stat_msg = (bios_proto_t*) zhashx_next (self->stats))
     {
+        // take a key, actually it is the future subject of the message
         const char* key = (const char*) zhashx_cursor (self->stats);
 
-        uint64_t stat_now_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
+        // What is an assigned time for the metric ( in our case it is a left margin in the interval)
+        uint64_t metric_time_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
         uint64_t step = bios_proto_aux_number (stat_msg, AGENT_CM_STEP, 0);
-        uint64_t now_s = (now_ms - (now_ms % (step * 1000))) / 1000;
+        // What SHOULD be an assigned time for the NEW stat metric (in our case it is a left margin in the NEW interval)
+        uint64_t metric_time_new_s = (now_ms - (now_ms % (step * 1000))) / 1000;
 
         if (verbose)
-            zsys_debug ("cmstats_poll: key=%s\n\tnow_ms=%"PRIu64 ", now_s=%"PRIu64 ", stat_now_s=%"PRIu64 ", (now_ms - (stat_now_s * 1000))=%" PRIu64 ", step*1000=%"PRIu32,
+            zsys_debug ("cmstats_poll: key=%s\n\tnow_ms=%"PRIu64 ", metric_time_new_s=%"PRIu64 ", metric_time_s=%"PRIu64 ", (now_ms - (metric_time_s * 1000))=%" PRIu64 "s, step*1000=%"PRIu32 "ms",
             key,
             now_ms,
-            now_s,
-            stat_now_s,
-            (now_ms - stat_now_s * 1000),
+            metric_time_new_s,
+            metric_time_s,
+            (now_ms - metric_time_s * 1000),
             step * 1000);
 
-        // it is, return the stat value and "restart" the computation
-        if ((now_ms - (stat_now_s * 1000)) >= (step * 1000)) {
+        // Should this metic be publish and computation restarted?
+        if ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) {
+            // Yes it should!
             bios_proto_t *ret = bios_proto_dup (stat_msg);
 
-            bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, now_s);
-            bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "0");
-            bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");
+            bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
+            bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "0"); // As we do not receive any message, start from ZERO
+            bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");  // As we do not receive any message, start from ZERO
 
-            bios_proto_set_value (stat_msg, "0");
+            bios_proto_set_value (stat_msg, "0");  // As we do not receive any message, start from ZERO
 
             if (verbose) {
-                zsys_debug ("cmstats:\tpublish message, subject=%s", key);
+                zsys_debug ("cmstats:\tPublishing message wiht subject=%s", key);
                 bios_proto_print (ret);
             }
             zmsg_t *msg = bios_proto_encode (&ret);
-            mlm_client_send (client, key, &msg);
+            int r = mlm_client_send (client, key, &msg);
+            if ( r == -1 ) {
+                zsys_error ("cmstats:\tCannot publish statistics");
+            }
         }
     }
 }
@@ -371,6 +379,8 @@ cmstats_load (const char *filename)
         return NULL;
 
     cmstats_t *self = cmstats_new ();
+    if (!self)
+        return NULL;
     zconfig_t *key_config = zconfig_child (root);
     for (; key_config != NULL; key_config = zconfig_next (key_config))
     {
@@ -528,7 +538,7 @@ cmstats_test (bool verbose)
     //cmstats_print (self);
     assert (zhashx_lookup (self->stats, "TYPE_max_1s@ELEMENT_SRC"));
 
-    cmstats_delete_dev (self, "ELEMENT_SRC");
+    cmstats_delete_asset (self, "ELEMENT_SRC");
     assert (!zhashx_lookup (self->stats, "TYPE_max_1s@ELEMENT_SRC"));
 
     cmstats_destroy (&self);

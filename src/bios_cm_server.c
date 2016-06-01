@@ -300,7 +300,7 @@ bios_cm_server (zsock_t *pipe, void *args)
             const char *op = bios_proto_operation (bmsg);
             if (streq (op, "delete")
             ||  streq (op, "retire"))
-                cmstats_delete_dev (self->stats, bios_proto_name (bmsg));
+                cmstats_delete_asset (self->stats, bios_proto_name (bmsg));
 
             bios_proto_destroy (&bmsg);
             continue;
