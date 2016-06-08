@@ -125,6 +125,7 @@ bios_cm_server (zsock_t *pipe, void *args)
             // What is the "now" time in [s]
             int64_t now_s = zclock_time () / 1000;
 
+            // Compute the left border of the interval:
             // length_of_the_minimal_interval - part_of_interval_already_passed
             interval_ms = (cmsteps_gcd (self->steps) - (now_s % cmsteps_gcd (self->steps))) * 1000;
             if (self->verbose)
@@ -167,7 +168,7 @@ bios_cm_server (zsock_t *pipe, void *args)
             if (self->filename) {
                 int r = cmstats_save (self->stats, self->filename);
                 if (r == -1)
-                    zsys_error ("%s:\tfailed to save %s: %s", self->name, self->filename, strerror (errno));
+                    zsys_error ("%s:\tFailed to save %s: %s", self->name, self->filename, strerror (errno));
                 else
                     if (self->verbose)
                         zsys_info ("%s:\t'%s' saved succesfully", self->name, self->filename);
@@ -291,6 +292,10 @@ bios_cm_server (zsock_t *pipe, void *args)
         } // end of comand pipe processing
 
         zmsg_t *msg = mlm_client_recv (self->client);
+        if ( !msg ) {
+            zsys_error ("%s:\tmlm_client_recv() == NULL", self->name);
+            continue;
+        }
         bios_proto_t *bmsg = bios_proto_decode (&msg);
 
         // If we received an asset message 
