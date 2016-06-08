@@ -50,9 +50,13 @@ s_duplicator (const void *self)
 
 
 // find minimum value
+// \param bmsg - input new metric
+// \param stat_msg - output statistic metric
 static void
 s_min (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
 {
+    assert (bmsg);
+    assert (stat_msg);
     double bmsg_value = atof (bios_proto_value ((bios_proto_t*) bmsg));
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double stat_value = atof (bios_proto_value (stat_msg));
@@ -62,9 +66,14 @@ s_min (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     }
 }
 
+// find maximum value
+// \param bmsg - input new metric
+// \param stat_msg - output statistic metric
 static void
 s_max (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
 {
+    assert (bmsg);
+    assert (stat_msg);
     double bmsg_value = atof (bios_proto_value ((bios_proto_t*) bmsg));
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double stat_value = atof (bios_proto_value (stat_msg));
@@ -75,9 +84,14 @@ s_max (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     }
 }
 
+// find average value
+// \param bmsg - input new metric
+// \param stat_msg - output statistic metric
 static void
 s_arithmetic_mean (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
 {
+    assert (bmsg);
+    assert (stat_msg);
     double value = atof (bios_proto_value ((bios_proto_t*) bmsg));
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double sum = atof (bios_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"));
@@ -128,7 +142,7 @@ cmstats_destroy (cmstats_t **self_p)
 
 //  --------------------------------------------------------------------------
 //  Print the cmstats
-AGENT_CM_EXPORT void
+void
 cmstats_print (cmstats_t *self)
 {
     assert (self);
@@ -156,7 +170,12 @@ cmstats_print (cmstats_t *self)
 // * bmsg - message with received new RAW value
 //
 bios_proto_t *
-cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step, bios_proto_t *bmsg)
+cmstats_put (
+    cmstats_t *self,
+    const char* type,
+    const char *sstep,
+    uint32_t step,
+    bios_proto_t *bmsg)
 {
     assert (self);
     assert (type);
