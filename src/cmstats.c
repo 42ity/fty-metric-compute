@@ -33,7 +33,7 @@
 typedef void (compute_fn) (const bios_proto_t *bmsg, bios_proto_t *stat_msg);
 
 struct _cmstats_t {
-    zhashx_t *stats;
+    zhashx_t *stats; // a hash of BIOS_PROTO metrics for "AVG/MIN/MAX" ready to be published
 };
 
 static void
@@ -50,9 +50,13 @@ s_duplicator (const void *self)
 
 
 // find minimum value
+// \param bmsg - input new metric
+// \param stat_msg - output statistic metric
 static void
 s_min (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
 {
+    assert (bmsg);
+    assert (stat_msg);
     double bmsg_value = atof (bios_proto_value ((bios_proto_t*) bmsg));
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double stat_value = atof (bios_proto_value (stat_msg));
@@ -62,9 +66,14 @@ s_min (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     }
 }
 
+// find maximum value
+// \param bmsg - input new metric
+// \param stat_msg - output statistic metric
 static void
 s_max (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
 {
+    assert (bmsg);
+    assert (stat_msg);
     double bmsg_value = atof (bios_proto_value ((bios_proto_t*) bmsg));
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double stat_value = atof (bios_proto_value (stat_msg));
@@ -75,9 +84,14 @@ s_max (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     }
 }
 
+// find average value
+// \param bmsg - input new metric
+// \param stat_msg - output statistic metric
 static void
 s_arithmetic_mean (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
 {
+    assert (bmsg);
+    assert (stat_msg);
     double value = atof (bios_proto_value ((bios_proto_t*) bmsg));
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double sum = atof (bios_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"));
@@ -128,7 +142,7 @@ cmstats_destroy (cmstats_t **self_p)
 
 //  --------------------------------------------------------------------------
 //  Print the cmstats
-AGENT_CM_EXPORT void
+void
 cmstats_print (cmstats_t *self)
 {
     assert (self);
@@ -156,7 +170,12 @@ cmstats_print (cmstats_t *self)
 // * bmsg - message with received new RAW value
 //
 bios_proto_t *
-cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step, bios_proto_t *bmsg)
+cmstats_put (
+    cmstats_t *self,
+    const char* type,
+    const char *sstep,
+    uint32_t step,
+    bios_proto_t *bmsg)
 {
     assert (self);
     assert (type);
@@ -424,14 +443,24 @@ cmstats_test (bool verbose)
         printf ("\n");
 
     //  @selftest
-    //  Simple create/destroy test
 
     static const char *file = "src/cmstats.zpl";
     unlink (file);
 
+    if ( verbose )
+        zsys_info ("Test 1: Simple test on empty structure");
     cmstats_t *self = cmstats_new ();
     assert (self);
+    cmstats_print (self);
+    cmstats_delete_asset (self, "SOMESTRING");
+    // TODO uncomment, when tests for this function would be supported
+    // cmstats_poll (self, client, verbose);
+    cmstats_save (self, "itshouldbeemptyfile");
+    cmstats_destroy (&self);
 
+    if ( verbose )
+        zsys_info ("Test2: some test");
+    self = cmstats_new ();
     //XXX: the test is sensitive on timing!!!
     //     so it must start at the beggining of the second
     //     other option is to not test in second precision,
@@ -520,10 +549,11 @@ cmstats_test (bool verbose)
     //  1.6 check the arithmetic_mean
     stats = cmstats_put (self, "arithmetic_mean", "1s", 1, bmsg);
     assert (stats);
-    if (verbose)
+    if (verbose) {
         bios_proto_print (stats);
-    zsys_info ("avg real: %s", bios_proto_value (stats) );
-    zsys_info ("avg expected: %f", (100.99+42.1) / 2 );
+        zsys_info ("avg real: %s", bios_proto_value (stats) );
+        zsys_info ("avg expected: %f", (100.99+42.1) / 2 );
+    }
     assert (atof (bios_proto_value (stats)) == (100.99+42.1) / 2);
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&bmsg);
