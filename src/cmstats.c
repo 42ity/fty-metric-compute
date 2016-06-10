@@ -555,7 +555,8 @@ cmstats_test (bool verbose)
         zsys_info ("avg expected: %f", (100.99+42.1) / 2 );
     }
     char *xxx = NULL;
-    asprintf (&xxx, "%.2f", (100.99+42.1) / 2);
+    int r = asprintf (&xxx, "%.2f", (100.99+42.1) / 2);
+    assert (r != -1);   // make gcc @ rhel happy
     assert (streq (bios_proto_value (stats), xxx));
     zstr_free (&xxx);
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
