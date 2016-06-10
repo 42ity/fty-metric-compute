@@ -467,7 +467,7 @@ bios_cm_server_test (bool verbose)
         const char *type = bios_proto_aux_string (bmsg, AGENT_CM_TYPE, "");
         if (streq (type, "min")) {
             assert (streq (mlm_client_subject (consumer_1s), "realpower.default_min_1s@DEV1"));
-            assert (streq (bios_proto_value (bmsg), "50.000000"));
+            assert (streq (bios_proto_value (bmsg), "50.00"));
         }
         else
         if (streq (type, "max")) {
@@ -477,7 +477,7 @@ bios_cm_server_test (bool verbose)
         else
         if (streq (type, "arithmetic_mean")) {
             assert (streq (mlm_client_subject (consumer_1s), "realpower.default_arithmetic_mean_1s@DEV1"));
-            assert (streq (bios_proto_value (bmsg), "75.000000"));
+            assert (streq (bios_proto_value (bmsg), "75.00"));
         }
         else
             assert (false);
@@ -553,18 +553,18 @@ bios_cm_server_test (bool verbose)
 
         if (streq (type, "min")) {
             assert (streq (mlm_client_subject (consumer_5s), "realpower.default_min_5s@DEV1"));
-            assert (streq (bios_proto_value (bmsg), "42.000000"));
+            assert (streq (bios_proto_value (bmsg), "42.00"));
         }
         else
         if (streq (type, "max")) {
             assert (streq (mlm_client_subject (consumer_5s), "realpower.default_max_5s@DEV1"));
-            assert (streq (bios_proto_value (bmsg), "242.000000"));
+            assert (streq (bios_proto_value (bmsg), "242.00"));
         }
         else
         if (streq (type, "arithmetic_mean")) {
             assert (streq (mlm_client_subject (consumer_5s), "realpower.default_arithmetic_mean_5s@DEV1"));
             // (100 + 50 + 42 + 242) / 5
-            assert (streq (bios_proto_value (bmsg), "108.500000"));
+            assert (streq (bios_proto_value (bmsg), "108.50"));
         }
         else
             assert (false);
