@@ -62,7 +62,7 @@ s_min (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     double stat_value = atof (bios_proto_value (stat_msg));
     if (count == 0
     || (bmsg_value < stat_value)) {
-        bios_proto_set_value (stat_msg, "%f", bmsg_value);
+        bios_proto_set_value (stat_msg, "%.2f", bmsg_value);
     }
 }
 
@@ -80,7 +80,7 @@ s_max (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
 
     if (count == 0
     || (bmsg_value > stat_value)) {
-        bios_proto_set_value (stat_msg, "%f", bmsg_value);
+        bios_proto_set_value (stat_msg, "%.2f", bmsg_value);
     }
 }
 
@@ -102,7 +102,7 @@ s_arithmetic_mean (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     else
         sum += value;
     bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%f", sum);
-    bios_proto_set_value (stat_msg, "%f", (sum / (count+1)) );
+    bios_proto_set_value (stat_msg, "%.2f", (sum / (count+1)) );
 }
 
 //  --------------------------------------------------------------------------
@@ -533,7 +533,7 @@ cmstats_test (bool verbose)
     assert (stats);
     if (verbose)
         bios_proto_print (stats);
-    assert (streq (bios_proto_value (stats), "42.100000"));
+    assert (streq (bios_proto_value (stats), "42.10"));
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&stats);
 
@@ -554,7 +554,10 @@ cmstats_test (bool verbose)
         zsys_info ("avg real: %s", bios_proto_value (stats) );
         zsys_info ("avg expected: %f", (100.99+42.1) / 2 );
     }
-    assert (atof (bios_proto_value (stats)) == (100.99+42.1) / 2);
+    char *xxx = NULL;
+    asprintf (&xxx, "%.2f", (100.99+42.1) / 2);
+    assert (streq (bios_proto_value (stats), xxx));
+    zstr_free (&xxx);
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&bmsg);
     bios_proto_destroy (&stats);
