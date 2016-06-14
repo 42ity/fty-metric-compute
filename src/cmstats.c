@@ -60,7 +60,7 @@ s_min (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     double bmsg_value = atof (bios_proto_value ((bios_proto_t*) bmsg));
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double stat_value = atof (bios_proto_value (stat_msg));
-    if (isnan (bmsg_value)
+    if (isnan (stat_value)
     ||  count == 0
     || (bmsg_value < stat_value)) {
         bios_proto_set_value (stat_msg, "%.2f", bmsg_value);
@@ -79,7 +79,7 @@ s_max (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double stat_value = atof (bios_proto_value (stat_msg));
 
-    if (isnan (bmsg_value)
+    if (isnan (stat_value)
     ||  count == 0
     || (bmsg_value > stat_value)) {
         bios_proto_set_value (stat_msg, "%.2f", bmsg_value);
