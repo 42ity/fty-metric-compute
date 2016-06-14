@@ -413,6 +413,17 @@ cmstats_load (const char *filename)
         bios_proto_set_unit (bmsg, zconfig_get (key_config, "unit", ""));
         bios_proto_set_ttl (bmsg, atoi (zconfig_get (key_config, "ttl", "0")));
 
+        double value = atof (bios_proto_value (bmsg));
+        if (isnan (value)) {
+            zsys_warning ("cmstats_load:\tisnan (%s) for %s@%s, ignoring",
+                    bios_proto_value (bmsg),
+                    bios_proto_type (bmsg),
+                    bios_proto_element_src (bmsg)
+                    );
+            bios_proto_destroy (&bmsg);
+            continue;
+        }
+
         // 2. put aux things
         zconfig_t *bmsg_config = zconfig_child (key_config);
         for (; bmsg_config != NULL; bmsg_config = zconfig_next (bmsg_config))
@@ -422,6 +433,11 @@ cmstats_load (const char *filename)
                 continue;
 
             bios_proto_aux_insert (bmsg, (bmsg_key+4), zconfig_value (bmsg_config));
+        }
+
+        value = atof (bios_proto_aux_string (bmsg, AGENT_CM_SUM, "0"));
+        if (isnan (value)) {
+            bios_proto_aux_insert (bmsg, AGENT_CM_SUM, "0");
         }
 
         zhashx_update (self->stats, key, bmsg);
