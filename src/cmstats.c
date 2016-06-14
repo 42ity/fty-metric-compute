@@ -60,7 +60,8 @@ s_min (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     double bmsg_value = atof (bios_proto_value ((bios_proto_t*) bmsg));
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double stat_value = atof (bios_proto_value (stat_msg));
-    if (count == 0
+    if (isnan (stat_value)
+    ||  count == 0
     || (bmsg_value < stat_value)) {
         bios_proto_set_value (stat_msg, "%.2f", bmsg_value);
     }
@@ -78,7 +79,8 @@ s_max (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double stat_value = atof (bios_proto_value (stat_msg));
 
-    if (count == 0
+    if (isnan (stat_value)
+    ||  count == 0
     || (bmsg_value > stat_value)) {
         bios_proto_set_value (stat_msg, "%.2f", bmsg_value);
     }
@@ -95,14 +97,36 @@ s_arithmetic_mean (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     double value = atof (bios_proto_value ((bios_proto_t*) bmsg));
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double sum = atof (bios_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"));
-   
+
+    if (isnan (value) || isnan (sum)) {
+        zsys_warning ("s_arithmetic_mean: isnan value(%s) or sum (%s) for %s@%s, skipping",
+            bios_proto_value ((bios_proto_t*) bmsg),
+            bios_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"),
+            bios_proto_type ((bios_proto_t*) bmsg),
+            bios_proto_element_src ((bios_proto_t*) bmsg)
+        );
+        return;
+    }
+
     // 0 means that we have first value
     if (count == 0)
         sum = value;
     else
         sum += value;
+
+    double avg = (sum / (count+1));
+    if (isnan (avg)) {
+        zsys_error ("s_arithmetic_mean: isnan (avg) %f / (%"PRIu64 " + 1), for %s@%s, skipping",
+            sum,
+            count,
+            bios_proto_type ((bios_proto_t*) bmsg),
+            bios_proto_element_src ((bios_proto_t*) bmsg)
+            );
+        return;
+    }
+
     bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%f", sum);
-    bios_proto_set_value (stat_msg, "%.2f", (sum / (count+1)) );
+    bios_proto_set_value (stat_msg, "%.2f", avg);
 }
 
 //  --------------------------------------------------------------------------
@@ -413,6 +437,17 @@ cmstats_load (const char *filename)
         bios_proto_set_unit (bmsg, zconfig_get (key_config, "unit", ""));
         bios_proto_set_ttl (bmsg, atoi (zconfig_get (key_config, "ttl", "0")));
 
+        double value = atof (bios_proto_value (bmsg));
+        if (isnan (value)) {
+            zsys_warning ("cmstats_load:\tisnan (%s) for %s@%s, ignoring",
+                    bios_proto_value (bmsg),
+                    bios_proto_type (bmsg),
+                    bios_proto_element_src (bmsg)
+                    );
+            bios_proto_destroy (&bmsg);
+            continue;
+        }
+
         // 2. put aux things
         zconfig_t *bmsg_config = zconfig_child (key_config);
         for (; bmsg_config != NULL; bmsg_config = zconfig_next (bmsg_config))
@@ -422,6 +457,11 @@ cmstats_load (const char *filename)
                 continue;
 
             bios_proto_aux_insert (bmsg, (bmsg_key+4), zconfig_value (bmsg_config));
+        }
+
+        value = atof (bios_proto_aux_string (bmsg, AGENT_CM_SUM, "0"));
+        if (isnan (value)) {
+            bios_proto_aux_insert (bmsg, AGENT_CM_SUM, "0");
         }
 
         zhashx_update (self->stats, key, bmsg);
