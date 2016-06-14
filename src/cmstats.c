@@ -60,7 +60,8 @@ s_min (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     double bmsg_value = atof (bios_proto_value ((bios_proto_t*) bmsg));
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double stat_value = atof (bios_proto_value (stat_msg));
-    if (count == 0
+    if (isnan (bmsg_value)
+    ||  count == 0
     || (bmsg_value < stat_value)) {
         bios_proto_set_value (stat_msg, "%.2f", bmsg_value);
     }
@@ -78,7 +79,8 @@ s_max (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double stat_value = atof (bios_proto_value (stat_msg));
 
-    if (count == 0
+    if (isnan (bmsg_value)
+    ||  count == 0
     || (bmsg_value > stat_value)) {
         bios_proto_set_value (stat_msg, "%.2f", bmsg_value);
     }
@@ -95,14 +97,36 @@ s_arithmetic_mean (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
     double value = atof (bios_proto_value ((bios_proto_t*) bmsg));
     uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double sum = atof (bios_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"));
-   
+
+    if (isnan (value) || isnan (sum)) {
+        zsys_warning ("s_arithmetic_mean: isnan value(%s) or sum (%s) for %s@%s, skipping",
+            bios_proto_value ((bios_proto_t*) bmsg),
+            bios_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"),
+            bios_proto_type ((bios_proto_t*) bmsg),
+            bios_proto_element_src ((bios_proto_t*) bmsg)
+        );
+        return;
+    }
+
     // 0 means that we have first value
     if (count == 0)
         sum = value;
     else
         sum += value;
+
+    double avg = (sum / (count+1));
+    if (isnan (avg)) {
+        zsys_error ("s_arithmetic_mean: isnan (avg) %f / (%"PRIu64 " + 1), for %s@%s, skipping",
+            sum,
+            count,
+            bios_proto_type ((bios_proto_t*) bmsg),
+            bios_proto_element_src ((bios_proto_t*) bmsg)
+            );
+        return;
+    }
+
     bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%f", sum);
-    bios_proto_set_value (stat_msg, "%.2f", (sum / (count+1)) );
+    bios_proto_set_value (stat_msg, "%.2f", avg);
 }
 
 //  --------------------------------------------------------------------------
