@@ -483,7 +483,7 @@ cmstats_test (bool verbose)
             NULL,
             "TYPE",
             "ELEMENT_SRC",
-            "100.99",
+            "100.989999",
             "UNIT",
             10);
     bios_proto_t *bmsg = bios_proto_decode (&msg);
@@ -502,7 +502,7 @@ cmstats_test (bool verbose)
             NULL,
             "TYPE",
             "ELEMENT_SRC",
-            "42.1",
+            "42.109999999999",
             "UNIT",
             10);
     bmsg = bios_proto_decode (&msg);
@@ -523,7 +523,7 @@ cmstats_test (bool verbose)
             NULL,
             "TYPE",
             "ELEMENT_SRC",
-            "42.88",
+            "42.889999999999",
             "UNIT",
             10);
     bmsg = bios_proto_decode (&msg);
@@ -533,7 +533,7 @@ cmstats_test (bool verbose)
     assert (stats);
     if (verbose)
         bios_proto_print (stats);
-    assert (streq (bios_proto_value (stats), "42.10"));
+    assert (streq (bios_proto_value (stats), "42.11"));
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&stats);
 
@@ -542,7 +542,7 @@ cmstats_test (bool verbose)
     assert (stats);
     if (verbose)
         bios_proto_print (stats);
-    assert (streq (bios_proto_value (stats), "100.99"));
+    assert (streq (bios_proto_value (stats), "100.989999"));
     assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     bios_proto_destroy (&stats);
 
@@ -552,7 +552,7 @@ cmstats_test (bool verbose)
     if (verbose) {
         bios_proto_print (stats);
         zsys_info ("avg real: %s", bios_proto_value (stats) );
-        zsys_info ("avg expected: %f", (100.99+42.1) / 2 );
+        zsys_info ("avg expected: %f", (100.989999+42.11) / 2 );
     }
     char *xxx = NULL;
     int r = asprintf (&xxx, "%.2f", (100.99+42.1) / 2);
