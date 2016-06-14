@@ -315,6 +315,19 @@ bios_cm_server (zsock_t *pipe, void *args)
         // update statistics for all steps and types
         // All statistics are computed for "left side of the interval"
         if ( bios_proto_id (bmsg) == BIOS_PROTO_METRIC ) {
+
+            // sometimes we do have nan in values, report if we get something like that on METRICS
+            double value = atof (bios_proto_value (bmsg));
+            if (isnan (value)) {
+                zsys_warning ("%s:\tisnan ('%s'), subject='%s', sender='%s'",
+                        value,
+                        mlm_client_subject (self->client),
+                        mlm_client_sender (self->client)
+                        );
+                bios_proto_destroy (&bmsg);
+                continue;
+            }
+
             for (uint32_t *step_p = cmsteps_first (self->steps);
                     step_p != NULL;
                     step_p = cmsteps_next (self->steps))
@@ -564,6 +577,7 @@ bios_cm_server_test (bool verbose)
         if (streq (type, "arithmetic_mean")) {
             assert (streq (mlm_client_subject (consumer_5s), "realpower.default_arithmetic_mean_5s@DEV1"));
             // (100 + 50 + 42 + 242) / 5
+            zsys_debug ("value=%s", bios_proto_value (bmsg));
             assert (streq (bios_proto_value (bmsg), "108.50"));
         }
         else
