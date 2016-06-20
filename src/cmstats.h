@@ -41,18 +41,9 @@ AGENT_CM_EXPORT void
 AGENT_CM_EXPORT void
     cmstats_print (cmstats_t *self);
 
-// Compute the $type value for given step - if the interval is over and new metric
-// is already inside the interval, NULL is returned
-// Otherwise new bios_proto_t metric is returned. Caller is responsible for
-// destroying the value.
-//
-// Type is supposed to be
-// * min - to find a minimum value inside given interval
-// * max - for find a maximum value
-// * arithmetic_mean - to compute arithmetic mean
-//
+// Update statistics with "aggr_fun" and "step" for the incomming message "bmsg"
 AGENT_CM_EXPORT bios_proto_t*
-    cmstats_put (cmstats_t *self, const char* type, const char *sstep, uint32_t step, bios_proto_t *bmsg);
+    cmstats_put (cmstats_t *self, const char* aggr_fun, const char *sstep, uint32_t step, bios_proto_t *bmsg);
 
 //  Remove all the entries related to the asset wiht asset_name from stats
 AGENT_CM_EXPORT void

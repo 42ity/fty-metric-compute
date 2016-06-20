@@ -180,29 +180,37 @@ cmstats_print (cmstats_t *self)
 }
 
 //  --------------------------------------------------------------------------
-// Compute the $type value for given step - the computation justs starts or new metric
-// is already inside the interval, NULL is returned
-// Otherwise new bios_proto_t metric is returned. Caller is responsible for
-// destroying the value.
+// Update statistics with "aggr_fun" and "step" for the incomming message "bmsg"
 //
-// Type is supposed to be
-// * min - to find a minimum value inside given interval
-// * max - for find a maximum value
-// * arithmetic_mean - to compute arithmetic mean
-// 
-// * step - in [s]
-// * bmsg - message with received new RAW value
+// Caller is responsible for destroying the value that was returned.
+//
+// parameter "aggr_fun" is supposed to be
+// * min - to find a minimum value inside the given interval
+// * max - to find a maximum value inside the given interval
+// * arithmetic_mean - to compute an arithmetic mean inside the given interval
+//
+// \param self - statistics object
+// \param aggr_fun - a type of aggregation ( min, max, avg ) 
+// \param sstep - string representation of the step to be used in topic creation
+// \param step - in [s]
+// \param bmsg - message with received new RAW value
+//
+// \return NULL - if nothing to publish
+//                  * if we just started the computation
+//                  * if we are in the middle of computation (inside the interval)
+//         ret  - if we have just completed the computation for the interval and
+//                started new one. ( The old one is returned)
 //
 bios_proto_t *
 cmstats_put (
     cmstats_t *self,
-    const char* type,
+    const char* addr_fun,
     const char *sstep,
     uint32_t step,
     bios_proto_t *bmsg)
 {
     assert (self);
-    assert (type);
+    assert (addr_fun);
     assert (bmsg);
 
     uint64_t now_ms = (uint64_t) zclock_time ();
@@ -216,7 +224,7 @@ cmstats_put (
     char *key;
     int r = asprintf (&key, "%s_%s_%s@%s",
             bios_proto_type (bmsg),
-            type,
+            addr_fun,
             sstep,
             bios_proto_element_src (bmsg));
     assert (r != -1);   // make gcc @ rhel happy
@@ -228,12 +236,12 @@ cmstats_put (
         stat_msg = bios_proto_dup (bmsg);
         bios_proto_set_type (stat_msg, "%s_%s_%s",
             bios_proto_type (bmsg),
-            type,
+            addr_fun,
             sstep);
         bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
         bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, bios_proto_value (stat_msg)); // insert value as string into string
-        bios_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", type);
+        bios_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", addr_fun);
         bios_proto_aux_insert (stat_msg, AGENT_CM_STEP, "%"PRIu32, step);
         bios_proto_set_ttl (stat_msg, 2 * step);
         zhashx_insert (self->stats, key, stat_msg);
@@ -249,8 +257,11 @@ cmstats_put (
 
     // it is, return the stat value and "restart" the computation
     if ( ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) ) {
+        // duplicate "old" value for the interval, that has just ended
         bios_proto_t *ret = bios_proto_dup (stat_msg);
 
+        // update statistics: restart it, as from now on we are going
+        // to compute the statistics for the next interval
         bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
         bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, bios_proto_value (stat_msg));
@@ -260,13 +271,13 @@ cmstats_put (
     }
 
     // if we're inside the interval, simply do the computation
-    if (streq (type, "min"))
+    if (streq (addr_fun, "min"))
         s_min (bmsg, stat_msg);
     else
-    if (streq (type, "max"))
+    if (streq (addr_fun, "max"))
         s_max (bmsg, stat_msg);
     else
-    if (streq (type, "arithmetic_mean"))
+    if (streq (addr_fun, "arithmetic_mean"))
         s_arithmetic_mean (bmsg, stat_msg);
     // fail otherwise
     else
