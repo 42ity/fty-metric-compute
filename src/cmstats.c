@@ -292,7 +292,7 @@ cmstats_put (
 }
 
 //  --------------------------------------------------------------------------
-//  Remove all the entries related to the asset wiht asset_name from stats
+//  Remove from stats all entries related to the asset with asset_name
 void
 cmstats_delete_asset (cmstats_t *self, const char *asset_name)
 {
@@ -355,9 +355,9 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
             (now_ms - metric_time_s * 1000),
             step * 1000);
 
-        // Should this metic be publish and computation restarted?
+        // Should this metic be published and computation restarted?
         if ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) {
-            // Yes it should!
+            // Yes, it should!
             bios_proto_t *ret = bios_proto_dup (stat_msg);
 
             bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
