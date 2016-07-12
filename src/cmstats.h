@@ -42,6 +42,25 @@ AGENT_CM_EXPORT void
     cmstats_print (cmstats_t *self);
 
 // Update statistics with "aggr_fun" and "step" for the incomming message "bmsg"
+// Caller is responsible for destroying the value that was returned.
+//
+// parameter "aggr_fun" is supposed to be
+// * min - to find a minimum value inside the given interval
+// * max - to find a maximum value inside the given interval
+// * arithmetic_mean - to compute an arithmetic mean inside the given interval
+//
+// \param self - statistics object
+// \param aggr_fun - a type of aggregation ( min, max, avg ) 
+// \param sstep - string representation of the step to be used in topic creation
+// \param step - in [s]
+// \param bmsg - message with received new RAW value
+//
+// \return NULL - if nothing to publish
+//                  * if we just started the computation
+//                  * if we are in the middle of computation (inside the interval)
+//         ret  - if we have just completed the computation for the interval and
+//                started new one. ( The old one is returned)
+//
 AGENT_CM_EXPORT bios_proto_t*
     cmstats_put (cmstats_t *self, const char* aggr_fun, const char *sstep, uint32_t step, bios_proto_t *bmsg);
 

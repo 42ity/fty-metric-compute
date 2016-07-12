@@ -28,10 +28,10 @@
 
 #include "agent_cm_classes.h"
 
-//  Structure of our class
 
 typedef void (compute_fn) (const bios_proto_t *bmsg, bios_proto_t *stat_msg);
 
+//  Structure of our class
 struct _cmstats_t {
     zhashx_t *stats; // a hash of BIOS_PROTO metrics for "AVG/MIN/MAX" ready to be published
 };
@@ -166,6 +166,7 @@ cmstats_destroy (cmstats_t **self_p)
 
 //  --------------------------------------------------------------------------
 //  Print the cmstats
+
 void
 cmstats_print (cmstats_t *self)
 {
@@ -181,26 +182,7 @@ cmstats_print (cmstats_t *self)
 
 //  --------------------------------------------------------------------------
 // Update statistics with "aggr_fun" and "step" for the incomming message "bmsg"
-//
-// Caller is responsible for destroying the value that was returned.
-//
-// parameter "aggr_fun" is supposed to be
-// * min - to find a minimum value inside the given interval
-// * max - to find a maximum value inside the given interval
-// * arithmetic_mean - to compute an arithmetic mean inside the given interval
-//
-// \param self - statistics object
-// \param aggr_fun - a type of aggregation ( min, max, avg ) 
-// \param sstep - string representation of the step to be used in topic creation
-// \param step - in [s]
-// \param bmsg - message with received new RAW value
-//
-// \return NULL - if nothing to publish
-//                  * if we just started the computation
-//                  * if we are in the middle of computation (inside the interval)
-//         ret  - if we have just completed the computation for the interval and
-//                started new one. ( The old one is returned)
-//
+
 bios_proto_t *
 cmstats_put (
     cmstats_t *self,
@@ -293,6 +275,7 @@ cmstats_put (
 
 //  --------------------------------------------------------------------------
 //  Remove from stats all entries related to the asset with asset_name
+
 void
 cmstats_delete_asset (cmstats_t *self, const char *asset_name)
 {

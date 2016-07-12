@@ -142,6 +142,7 @@ s_cmsteps_gcd (cmsteps_t *self)
 //  --------------------------------------------------------------------------
 //  Return greatest common divisor of steps - 0 means no steps are in a list
 // in [s]
+
 uint32_t
 cmsteps_gcd (cmsteps_t *self)
 {
