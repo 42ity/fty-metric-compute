@@ -19,8 +19,8 @@ make check # to run self-test
 
 ### METRIC stream
 
-Agent is SUBscribed on METRICS stream (for now only for "realpower.default, 
-"average.temperature", "average.humidity" topics) . Once the time step passed, it PUBlishes a 
+Agent is SUBscribed on METRICS stream (for now only for "realpower.default,
+"average.temperature", "average.humidity" topics) . Once the time step passed, it PUBlishes a
 computed value back as METRIC on the METRICS stream with the following properties:
   * subject is ```${original-subject}_${type}_${step}@${asset_name}```
   * there is ```x-cm-type``` field in aux stating the type

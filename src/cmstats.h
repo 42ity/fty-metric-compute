@@ -1,21 +1,21 @@
 /*  =========================================================================
     cmstats - Computing the stats on metrics
 
-    Copyright (C) 2016 Eaton                                               
-                                                                           
-    This program is free software; you can redistribute it and/or modify   
-    it under the terms of the GNU General Public License as published by   
-    the Free Software Foundation; either version 2 of the License, or      
-    (at your option) any later version.                                    
-                                                                           
-    This program is distributed in the hope that it will be useful,        
-    but WITHOUT ANY WARRANTY; without even the implied warranty of         
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          
-    GNU General Public License for more details.                           
-                                                                           
+    Copyright (C) 2016 Eaton
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
     You should have received a copy of the GNU General Public License along
     with this program; if not, write to the Free Software Foundation, Inc.,
-    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.            
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
     =========================================================================
 */
 
@@ -50,7 +50,7 @@ AGENT_CM_EXPORT void
 // * arithmetic_mean - to compute an arithmetic mean inside the given interval
 //
 // \param self - statistics object
-// \param aggr_fun - a type of aggregation ( min, max, avg ) 
+// \param aggr_fun - a type of aggregation ( min, max, avg )
 // \param sstep - string representation of the step to be used in topic creation
 // \param step - in [s]
 // \param bmsg - message with received new RAW value

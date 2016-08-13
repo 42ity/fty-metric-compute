@@ -1,21 +1,21 @@
 /*  =========================================================================
     bios_cm_server - Computation server implementation
 
-    Copyright (C) 2016 Eaton                                               
-                                                                           
-    This program is free software; you can redistribute it and/or modify   
-    it under the terms of the GNU General Public License as published by   
-    the Free Software Foundation; either version 2 of the License, or      
-    (at your option) any later version.                                    
-                                                                           
-    This program is distributed in the hope that it will be useful,        
-    but WITHOUT ANY WARRANTY; without even the implied warranty of         
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          
-    GNU General Public License for more details.                           
-                                                                           
+    Copyright (C) 2016 Eaton
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
     You should have received a copy of the GNU General Public License along
     with this program; if not, write to the Free Software Foundation, Inc.,
-    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.            
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
     =========================================================================
 */
 
@@ -148,7 +148,7 @@ bios_cm_server (zsock_t *pipe, void *args)
         //
         //  X2 is an expected moment when some metrics should be published
         //  in t=X1 message comes, its processing takes time and cycle will begin from the beginning
-        //  at moment X4, but in X3 some message had already come -> so zpoller_expired(poller) == false 
+        //  at moment X4, but in X3 some message had already come -> so zpoller_expired(poller) == false
         //
         // -NOW----X1------X2---X3--X4-----
         if ((!which && zpoller_expired (poller))
@@ -160,7 +160,7 @@ bios_cm_server (zsock_t *pipe, void *args)
                 else
                     zsys_debug ("%s:\ttime (not zpoller) expired, calling cmstats_poll", self->name);
             }
-            // Publish metrics and reset the computation where needed 
+            // Publish metrics and reset the computation where needed
             cmstats_poll (self->stats, self->client, self->verbose);
             // State is saved every time, when something is published
             // Something is published every "steps_gcd" interval
@@ -298,8 +298,8 @@ bios_cm_server (zsock_t *pipe, void *args)
         }
         bios_proto_t *bmsg = bios_proto_decode (&msg);
 
-        // If we received an asset message 
-        // * "delete" or "retire"  -> drop all computations on that asset 
+        // If we received an asset message
+        // * "delete" or "retire"  -> drop all computations on that asset
         // *  other                -> ignore it, as it doesn't impact this agent
         if ( bios_proto_id (bmsg) == BIOS_PROTO_ASSET ) {
             const char *op = bios_proto_operation (bmsg);
@@ -424,7 +424,7 @@ bios_cm_server_test (bool verbose)
     zstr_sendx (cm_server, "PRODUCER", BIOS_PROTO_STREAM_METRICS, NULL);
     zstr_sendx (cm_server, "CONSUMER", BIOS_PROTO_STREAM_METRICS, ".*", NULL);
     zclock_sleep (500);
-    
+
     //XXX: the test is sensitive on timing!!!
     //     so it must start at the beggining of the fifth second in minute (00, 05, 10, ... 55)
     //     other option is to not test in second precision,
@@ -530,7 +530,7 @@ bios_cm_server_test (bool verbose)
             zsys_debug ("subject=%s", mlm_client_subject (consumer_1s));
             bios_proto_print (bmsg);
         }
-        /* It is not reliable under memcheck, because of timeing 
+        /* It is not reliable under memcheck, because of timing
         static const char* values[] = {"0", "42.000000", "242.000000", "142.000000"};
         bool test = false;
         for (int j =0; j < sizeof (values); j++)
@@ -540,7 +540,7 @@ bios_cm_server_test (bool verbose)
                 break;
             }
         }
-        // ATTENTION: test == false , then make chekc will write "Segmentation fault"
+        // ATTENTION: test == false , then make check will write "Segmentation fault"
         // instead of "Assertion failed"
         assert (test == true);
         */

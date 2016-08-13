@@ -1,27 +1,27 @@
 /*  =========================================================================
     bios_agent_cm - description
 
-    Copyright (C) 2016 Eaton                                               
-                                                                           
-    This program is free software; you can redistribute it and/or modify   
-    it under the terms of the GNU General Public License as published by   
-    the Free Software Foundation; either version 2 of the License, or      
-    (at your option) any later version.                                    
-                                                                           
-    This program is distributed in the hope that it will be useful,        
-    but WITHOUT ANY WARRANTY; without even the implied warranty of         
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          
-    GNU General Public License for more details.                           
-                                                                           
+    Copyright (C) 2016 Eaton
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
     You should have received a copy of the GNU General Public License along
     with this program; if not, write to the Free Software Foundation, Inc.,
-    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.            
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
     =========================================================================
 */
 
 /*
 @header
-    bios_agent_cm - 
+    bios_agent_cm -
 @discuss
 @end
 */
@@ -78,12 +78,13 @@ int main (int argc, char *argv [])
         zstr_sendx (cm_server, "VERBOSE", NULL);
     zstr_sendx (cm_server, "TYPES", "min", "max", "arithmetic_mean", NULL);
     zstr_sendx (cm_server, "STEPS", "15m", "30m", "1h", "8h", "24h", "7d", "30d", NULL);
+    // TODO: Make this configurable, runtime and build-time default
     zstr_sendx (cm_server, "DIR", "/var/lib/bios/bios-agent-cm/", NULL);
     zstr_sendx (cm_server, "CONNECT", endpoint, "bios-cm-server", NULL);
     zstr_sendx (cm_server, "PRODUCER", BIOS_PROTO_STREAM_METRICS, NULL);
     zstr_sendx (cm_server, "CONSUMER", BIOS_PROTO_STREAM_ASSETS, ".*", NULL);
     zstr_sendx (cm_server, "CONSUMER", BIOS_PROTO_STREAM_METRICS, "(^realpower.default.*|.*temperature.*|.*humidity.*)", NULL);
-    
+
     // src/malamute.c, under MPL license
     while (true) {
         char *message = zstr_recv (cm_server);
