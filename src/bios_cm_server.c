@@ -189,6 +189,7 @@ bios_cm_server (zsock_t *pipe, void *args)
                 zsys_debug ("%s:\tAPI command=%s", self->name, command);
 
             if (streq (command, "$TERM")) {
+                zsys_info ("Got $TERM");
                 zstr_free (&command);
                 zmsg_destroy (&msg);
                 break;
