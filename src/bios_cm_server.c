@@ -240,17 +240,15 @@ bios_cm_server (zsock_t *pipe, void *args)
             if (streq (command, "CONNECT"))
             {
                 char *endpoint = zmsg_popstr (msg);
-                char *client_name = zmsg_popstr (msg);
-                if (!endpoint || !client_name)
+                if (!endpoint)
                     zsys_error ("%s:\tMissing endpoint or name", self->name);
                 else
                 {
-                    int r = mlm_client_connect (self->client, endpoint, 5000, client_name);
+                    int r = mlm_client_connect (self->client, endpoint, 5000, self->name);
                     if (r == -1)
-                        zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name);
+                        zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
 
                 }
-                zstr_free (&client_name);
                 zstr_free (&endpoint);
             }
             else
@@ -417,7 +415,7 @@ bios_cm_server_test (bool verbose)
     zstr_sendx (cm_server, "TYPES", "min", "max", "arithmetic_mean", NULL);
     zstr_sendx (cm_server, "STEPS", "1s", "5s", NULL);
     zstr_sendx (cm_server, "DIR", "src", NULL);
-    zstr_sendx (cm_server, "CONNECT", endpoint, "bios-cm-server", NULL);
+    zstr_sendx (cm_server, "CONNECT", endpoint, NULL);
     zstr_sendx (cm_server, "PRODUCER", BIOS_PROTO_STREAM_METRICS, NULL);
     zstr_sendx (cm_server, "CONSUMER", BIOS_PROTO_STREAM_METRICS, ".*", NULL);
     zclock_sleep (500);
