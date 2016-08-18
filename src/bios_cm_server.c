@@ -41,37 +41,6 @@ typedef struct _cm_t {
 } cm_t;
 
 /*
- * \brief Create new empty not verbose "CM" entity
- */
-cm_t*
-cm_new (const char* name)
-{
-    assert (name);
-    cm_t *self = (cm_t*) zmalloc (sizeof (cm_t));
-    assert (self);
-
-    self->verbose = false;
-
-    self->name = strdup (name);
-    assert (self->name);
-
-    self->stats = cmstats_new ();
-    assert (self->stats);
-
-    self->steps = cmsteps_new ();
-    assert (self->steps);
-
-    self->types = zlist_new ();
-    assert (self->types);
-    zlist_autofree (self->types);
-
-    self->client = mlm_client_new ();
-    assert (self->client);
-
-    return self;
-}
-
-/*
  * \brief Destroy the "CM" entity
  */
 void
@@ -93,6 +62,33 @@ cm_destroy (cm_t **self_p)
         free (self);
         *self_p = NULL;
     }
+}
+
+/*
+ * \brief Create new empty not verbose "CM" entity
+ */
+cm_t*
+cm_new (const char* name)
+{
+    assert (name);
+    cm_t *self = (cm_t*) zmalloc (sizeof (cm_t));
+    if (self) {
+        self->verbose = false;
+        self->name = strdup (name);
+        if (self->name)
+            self->stats = cmstats_new ();
+        if (self->stats)
+            self->steps = cmsteps_new ();
+        if (self->steps)
+            self->types = zlist_new ();
+        if (self->types)
+            self->client = mlm_client_new ();
+        if (self->client)
+            zlist_autofree (self->types);
+        else
+            cm_destroy (&self);
+    }
+    return self;
 }
 
 //  --------------------------------------------------------------------------
