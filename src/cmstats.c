@@ -416,8 +416,10 @@ cmstats_load (const char *filename)
         return NULL;
 
     cmstats_t *self = cmstats_new ();
-    if (!self)
+    if (!self) {
+        zconfig_destroy (&root);
         return NULL;
+    }
     zconfig_t *key_config = zconfig_child (root);
     for (; key_config != NULL; key_config = zconfig_next (key_config))
     {
