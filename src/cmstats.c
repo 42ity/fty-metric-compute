@@ -371,13 +371,21 @@ cmstats_save (cmstats_t *self, const char *filename)
     assert (self);
 
     zconfig_t *root = zconfig_new ("cmstats", NULL);
+    int i = 1;
     for (bios_proto_t *bmsg = (bios_proto_t*) zhashx_first (self->stats);
                        bmsg != NULL;
                        bmsg = (bios_proto_t*) zhashx_next (self->stats))
     {
-        const char* key = (const char*) zhashx_cursor (self->stats);
+        // ZCONFIG doesn't allow spaces in keys! -> metric topic cannot be key
+        // because it has an asset name inside!
+        char *asset_key = NULL;
+        int r = asprintf (&asset_key, "%d", i);
+        assert (r != -1);   // make gcc @ rhel happy
+        i++;
+        const char* metric_topic = (const char*) zhashx_cursor (self->stats);
 
-        zconfig_t *item = zconfig_new (key, root);
+        zconfig_t *item = zconfig_new (asset_key, root);
+        zconfig_put (item, "metric_topic", metric_topic);
         zconfig_put (item, "type", bios_proto_type (bmsg));
         zconfig_put (item, "element_src", bios_proto_element_src (bmsg));
         zconfig_put (item, "value", bios_proto_value (bmsg));
@@ -396,7 +404,7 @@ cmstats_save (cmstats_t *self, const char *filename)
             zconfig_put (item, item_key, aux_value);
             zstr_free (&item_key);
         }
-
+        zstr_free (&asset_key);
     }
 
     int r = zconfig_save (root, filename);
@@ -423,9 +431,8 @@ cmstats_load (const char *filename)
     zconfig_t *key_config = zconfig_child (root);
     for (; key_config != NULL; key_config = zconfig_next (key_config))
     {
-        const char *key = zconfig_name (key_config);
-
         // 1. create bmsg
+        const char *metric_topic = zconfig_get (key_config, "metric_topic", "");
         bios_proto_t *bmsg = bios_proto_new (BIOS_PROTO_METRIC);
         bios_proto_set_type (bmsg, zconfig_get (key_config, "type", ""));
         bios_proto_set_element_src (bmsg, zconfig_get (key_config, "element_src", ""));
@@ -460,7 +467,7 @@ cmstats_load (const char *filename)
             bios_proto_aux_insert (bmsg, AGENT_CM_SUM, "0");
         }
 
-        zhashx_update (self->stats, key, bmsg);
+        zhashx_update (self->stats, metric_topic, bmsg);
         bios_proto_destroy (&bmsg);
     }
 
