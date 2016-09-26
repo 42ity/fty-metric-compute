@@ -311,6 +311,16 @@ bios_cm_server (zsock_t *pipe, void *args)
         // All statistics are computed for "left side of the interval"
         if ( bios_proto_id (bmsg) == BIOS_PROTO_METRIC ) {
 
+            // get rid of messages with empty or null element_src
+            if (streq (bios_proto_element_src (bmsg), " ") || bios_proto_element_src (bmsg) == NULL)
+            {
+                zsys_warning ("Invalid \'element_src\': \tsubject=%s, sender=%s",
+                        mlm_client_subject (self->client),
+                        mlm_client_sender (self->client));
+                bios_proto_destroy(&bmsg);
+                continue;
+            }
+            
             // sometimes we do have nan in values, report if we get something like that on METRICS
             double value = atof (bios_proto_value (bmsg));
             if (isnan (value)) {
@@ -457,6 +467,17 @@ bios_cm_server_test (bool verbose)
             "UNIT",
             10);
     mlm_client_send (producer, "realpower.default@DEV1", &msg);
+
+
+    // empty element_src
+    msg = bios_proto_encode_metric (
+            NULL,
+            "realpower.default",
+            " ",
+            "50",
+            "UNIT",
+            10);
+    mlm_client_send (producer, "temperature.invalid_src@", &msg);
 
     // T+1100ms
     zclock_sleep (5000 - (zclock_time () - TEST_START_MS) - 3900);
