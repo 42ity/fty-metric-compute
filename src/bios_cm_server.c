@@ -241,7 +241,7 @@ bios_cm_server (zsock_t *pipe, void *args)
             {
                 char *endpoint = zmsg_popstr (msg);
                 if (!endpoint)
-                    zsys_error ("%s:\tMissing endpoint or name", self->name);
+                    zsys_error ("%s:\tMissing endpoint", self->name);
                 else
                 {
                     int r = mlm_client_connect (self->client, endpoint, 5000, self->name);
