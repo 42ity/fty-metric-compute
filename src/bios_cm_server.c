@@ -314,7 +314,8 @@ bios_cm_server (zsock_t *pipe, void *args)
             // get rid of messages with empty or null element_src
             if (bios_proto_element_src (bmsg) == NULL || streq (bios_proto_element_src (bmsg), ""))
             {
-                zsys_warning ("Invalid \'element_src\' (%s), \tsubject=%s, sender=%s",
+                zsys_warning ("%s: invalid \'element_src\' = (%s), \tsubject=%s, sender=%s",
+                        self->name,            
                         bios_proto_element_src (bmsg) ?  bios_proto_element_src (bmsg) : "null",       
                         mlm_client_subject (self->client),
                         mlm_client_sender (self->client));
