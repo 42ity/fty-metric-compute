@@ -310,21 +310,23 @@ bios_cm_server (zsock_t *pipe, void *args)
         // update statistics for all steps and types
         // All statistics are computed for "left side of the interval"
         if ( bios_proto_id (bmsg) == BIOS_PROTO_METRIC ) {
-
+        
             // get rid of messages with empty or null element_src
-            if (streq (bios_proto_element_src (bmsg), " ") || bios_proto_element_src (bmsg) == NULL)
+            if (bios_proto_element_src (bmsg) == NULL || streq (bios_proto_element_src (bmsg), ""))
             {
-                zsys_warning ("Invalid \'element_src\': \tsubject=%s, sender=%s",
+                zsys_warning ("Invalid \'element_src\' (%s), \tsubject=%s, sender=%s",
+                        bios_proto_element_src (bmsg) ?  bios_proto_element_src (bmsg) : "null",       
                         mlm_client_subject (self->client),
                         mlm_client_sender (self->client));
                 bios_proto_destroy(&bmsg);
                 continue;
             }
-            
+                    
             // sometimes we do have nan in values, report if we get something like that on METRICS
             double value = atof (bios_proto_value (bmsg));
             if (isnan (value)) {
                 zsys_warning ("%s:\tisnan ('%s'), subject='%s', sender='%s'",
+                        self->name,      
                         value,
                         mlm_client_subject (self->client),
                         mlm_client_sender (self->client)
@@ -459,6 +461,16 @@ bios_cm_server_test (bool verbose)
             10);
     mlm_client_send (producer, "realpower.default@DEV1", &msg);
 
+    // empty element_src
+    msg = bios_proto_encode_metric (
+            NULL,
+            "realpower.default",
+            "",
+            "20",
+            "UNIT",
+            10);
+    mlm_client_send (producer, "realpower.default@", &msg);
+
     msg = bios_proto_encode_metric (
             NULL,
             "realpower.default",
@@ -467,18 +479,7 @@ bios_cm_server_test (bool verbose)
             "UNIT",
             10);
     mlm_client_send (producer, "realpower.default@DEV1", &msg);
-
-
-    // empty element_src
-    msg = bios_proto_encode_metric (
-            NULL,
-            "realpower.default",
-            " ",
-            "50",
-            "UNIT",
-            10);
-    mlm_client_send (producer, "temperature.invalid_src@", &msg);
-
+    
     // T+1100ms
     zclock_sleep (5000 - (zclock_time () - TEST_START_MS) - 3900);
 
