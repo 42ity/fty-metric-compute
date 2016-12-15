@@ -1,5 +1,5 @@
 /*  =========================================================================
-    bios_cm_server - Computation server implementation
+    fty_mc_server - Computation server implementation
 
     Copyright (C) 2016 Eaton
 
@@ -21,7 +21,7 @@
 
 /*
 @header
-    bios_cm_server - Computation server implementation
+    fty_mc_server - Computation server implementation
 @discuss
 @end
 */
@@ -93,10 +93,10 @@ cm_new (const char* name)
 }
 
 //  --------------------------------------------------------------------------
-//  bios_cm_server actor
+//  fty_mc_server actor
 
 void
-bios_cm_server (zsock_t *pipe, void *args)
+fty_mc_server (zsock_t *pipe, void *args)
 {
 
     cm_t *self = cm_new ((const char*) args);
@@ -392,9 +392,9 @@ bios_cm_server (zsock_t *pipe, void *args)
 //  --------------------------------------------------------------------------
 //  Self test of this class
 void
-bios_cm_server_test (bool verbose)
+fty_mc_server_test (bool verbose)
 {
-    printf (" * bios_cm_server:");
+    printf (" * fty_mc_server:");
     if (verbose)
         printf ("\n");
 
@@ -423,7 +423,7 @@ bios_cm_server_test (bool verbose)
     mlm_client_connect (consumer_5s, endpoint, 5000, "consumer_5s");
     mlm_client_set_consumer (consumer_5s, FTY_PROTO_STREAM_METRICS, ".*(min|max|arithmetic_mean)_5s.*");
 
-    zactor_t *cm_server = zactor_new (bios_cm_server, "bios-cm-server");
+    zactor_t *cm_server = zactor_new (fty_mc_server, "fty-mc-server");
     if (verbose)
         zstr_sendx (cm_server, "VERBOSE", NULL);
     zstr_sendx (cm_server, "TYPES", "min", "max", "arithmetic_mean", NULL);

@@ -1,5 +1,5 @@
 /*  =========================================================================
-    bios_cm_server - Computation server implementation
+    fty_mc_server - Computation server implementation
 
     Copyright (C) 2016 Eaton
 
@@ -27,13 +27,13 @@ extern "C" {
 #endif
 
 //  @interface
-//  bios_cm_server actor
+//  fty_mc_server actor
 FTY_METRIC_COMPUTE_EXPORT void
-    bios_cm_server (zsock_t *pipe, void *args);
+    fty_mc_server (zsock_t *pipe, void *args);
 
 //  Self test of this class
 FTY_METRIC_COMPUTE_EXPORT void
-    bios_cm_server_test (bool verbose);
+    fty_mc_server_test (bool verbose);
 
 //  @end
 

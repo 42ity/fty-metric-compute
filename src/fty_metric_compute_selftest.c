@@ -38,7 +38,7 @@ static test_item_t
 all_tests [] = {
     { "cmstats", cmstats_test },
     { "cmsteps", cmsteps_test },
-    { "bios_cm_server", bios_cm_server_test },
+    { "fty_mc_server", fty_mc_server_test },
     {0, 0}          //  Sentinel
 };
 
@@ -105,7 +105,7 @@ main (int argc, char **argv)
             puts ("Available tests:");
             puts ("    cmstats");
             puts ("    cmsteps");
-            puts ("    bios_cm_server");
+            puts ("    fty_mc_server");
             return 0;
         }
         else
