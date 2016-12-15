@@ -26,26 +26,27 @@
 @end
 */
 
-#include "agent_cm_classes.h"
+#include "fty_metric_compute_classes.h"
+#include "fty_metric_compute.h"
 
 
-typedef void (compute_fn) (const bios_proto_t *bmsg, bios_proto_t *stat_msg);
+typedef void (compute_fn) (const fty_proto_t *bmsg, fty_proto_t *stat_msg);
 
 //  Structure of our class
 struct _cmstats_t {
-    zhashx_t *stats; // a hash of BIOS_PROTO metrics for "AVG/MIN/MAX" ready to be published
+    zhashx_t *stats; // a hash of FTY_PROTO metrics for "AVG/MIN/MAX" ready to be published
 };
 
 static void
 s_destructor (void **self_p)
 {
-    bios_proto_destroy ((bios_proto_t**) self_p);
+    fty_proto_destroy ((fty_proto_t**) self_p);
 }
 
 static void*
 s_duplicator (const void *self)
 {
-    return (void*) bios_proto_dup ((bios_proto_t*) self);
+    return (void*) fty_proto_dup ((fty_proto_t*) self);
 }
 
 
@@ -53,17 +54,17 @@ s_duplicator (const void *self)
 // \param bmsg - input new metric
 // \param stat_msg - output statistic metric
 static void
-s_min (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
+s_min (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
 {
     assert (bmsg);
     assert (stat_msg);
-    double bmsg_value = atof (bios_proto_value ((bios_proto_t*) bmsg));
-    uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
-    double stat_value = atof (bios_proto_value (stat_msg));
+    double bmsg_value = atof (fty_proto_value ((fty_proto_t*) bmsg));
+    uint64_t count = fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
+    double stat_value = atof (fty_proto_value (stat_msg));
     if (isnan (stat_value)
     ||  count == 0
     || (bmsg_value < stat_value)) {
-        bios_proto_set_value (stat_msg, "%.2f", bmsg_value);
+        fty_proto_set_value (stat_msg, "%.2f", bmsg_value);
     }
 }
 
@@ -71,18 +72,18 @@ s_min (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
 // \param bmsg - input new metric
 // \param stat_msg - output statistic metric
 static void
-s_max (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
+s_max (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
 {
     assert (bmsg);
     assert (stat_msg);
-    double bmsg_value = atof (bios_proto_value ((bios_proto_t*) bmsg));
-    uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
-    double stat_value = atof (bios_proto_value (stat_msg));
+    double bmsg_value = atof (fty_proto_value ((fty_proto_t*) bmsg));
+    uint64_t count = fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
+    double stat_value = atof (fty_proto_value (stat_msg));
 
     if (isnan (stat_value)
     ||  count == 0
     || (bmsg_value > stat_value)) {
-        bios_proto_set_value (stat_msg, "%.2f", bmsg_value);
+        fty_proto_set_value (stat_msg, "%.2f", bmsg_value);
     }
 }
 
@@ -90,20 +91,20 @@ s_max (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
 // \param bmsg - input new metric
 // \param stat_msg - output statistic metric
 static void
-s_arithmetic_mean (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
+s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
 {
     assert (bmsg);
     assert (stat_msg);
-    double value = atof (bios_proto_value ((bios_proto_t*) bmsg));
-    uint64_t count = bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
-    double sum = atof (bios_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"));
+    double value = atof (fty_proto_value ((fty_proto_t*) bmsg));
+    uint64_t count = fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
+    double sum = atof (fty_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"));
 
     if (isnan (value) || isnan (sum)) {
         zsys_warning ("s_arithmetic_mean: isnan value(%s) or sum (%s) for %s@%s, skipping",
-            bios_proto_value ((bios_proto_t*) bmsg),
-            bios_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"),
-            bios_proto_type ((bios_proto_t*) bmsg),
-            bios_proto_element_src ((bios_proto_t*) bmsg)
+            fty_proto_value ((fty_proto_t*) bmsg),
+            fty_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"),
+            fty_proto_type ((fty_proto_t*) bmsg),
+            fty_proto_element_src ((fty_proto_t*) bmsg)
         );
         return;
     }
@@ -119,14 +120,14 @@ s_arithmetic_mean (const bios_proto_t *bmsg, bios_proto_t *stat_msg)
         zsys_error ("s_arithmetic_mean: isnan (avg) %f / (%"PRIu64 " + 1), for %s@%s, skipping",
             sum,
             count,
-            bios_proto_type ((bios_proto_t*) bmsg),
-            bios_proto_element_src ((bios_proto_t*) bmsg)
+            fty_proto_type ((fty_proto_t*) bmsg),
+            fty_proto_element_src ((fty_proto_t*) bmsg)
             );
         return;
     }
 
-    bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%f", sum);
-    bios_proto_set_value (stat_msg, "%.2f", avg);
+    fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%f", sum);
+    fty_proto_set_value (stat_msg, "%.2f", avg);
 }
 
 //  --------------------------------------------------------------------------
@@ -176,20 +177,20 @@ cmstats_print (cmstats_t *self)
                it = zhashx_next (self->stats))
     {
         zsys_debug ("%s =>", (char*) zhashx_cursor (self->stats));
-        bios_proto_print ((bios_proto_t*) it);
+        fty_proto_print ((fty_proto_t*) it);
     }
 }
 
 //  --------------------------------------------------------------------------
 // Update statistics with "aggr_fun" and "step" for the incomming message "bmsg"
 
-bios_proto_t *
+fty_proto_t *
 cmstats_put (
     cmstats_t *self,
     const char* addr_fun,
     const char *sstep,
     uint32_t step,
-    bios_proto_t *bmsg)
+    fty_proto_t *bmsg)
 {
     assert (self);
     assert (addr_fun);
@@ -205,50 +206,50 @@ cmstats_put (
 
     char *key;
     int r = asprintf (&key, "%s_%s_%s@%s",
-            bios_proto_type (bmsg),
+            fty_proto_type (bmsg),
             addr_fun,
             sstep,
-            bios_proto_element_src (bmsg));
+            fty_proto_element_src (bmsg));
     assert (r != -1);   // make gcc @ rhel happy
 
-    bios_proto_t *stat_msg = (bios_proto_t*) zhashx_lookup (self->stats, key);
+    fty_proto_t *stat_msg = (fty_proto_t*) zhashx_lookup (self->stats, key);
 
     // handle the first insert
     if (!stat_msg) {
-        stat_msg = bios_proto_dup (bmsg);
-        bios_proto_set_type (stat_msg, "%s_%s_%s",
-            bios_proto_type (bmsg),
+        stat_msg = fty_proto_dup (bmsg);
+        fty_proto_set_type (stat_msg, "%s_%s_%s",
+            fty_proto_type (bmsg),
             addr_fun,
             sstep);
-        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
-        bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
-        bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, bios_proto_value (stat_msg)); // insert value as string into string
-        bios_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", addr_fun);
-        bios_proto_aux_insert (stat_msg, AGENT_CM_STEP, "%"PRIu32, step);
-        bios_proto_set_ttl (stat_msg, 2 * step);
+        fty_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
+        fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
+        fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, fty_proto_value (stat_msg)); // insert value as string into string
+        fty_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", addr_fun);
+        fty_proto_aux_insert (stat_msg, AGENT_CM_STEP, "%"PRIu32, step);
+        fty_proto_set_ttl (stat_msg, 2 * step);
         zhashx_insert (self->stats, key, stat_msg);
         zstr_free (&key);
-        bios_proto_destroy (&stat_msg);
+        fty_proto_destroy (&stat_msg);
         return NULL;
     }
     zstr_free (&key);
 
     // there is already some value
     // so check if it's not already older than we need
-    uint64_t metric_time_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
+    uint64_t metric_time_s = fty_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
 
     // it is, return the stat value and "restart" the computation
     if ( ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) ) {
         // duplicate "old" value for the interval, that has just ended
-        bios_proto_t *ret = bios_proto_dup (stat_msg);
+        fty_proto_t *ret = fty_proto_dup (stat_msg);
 
         // update statistics: restart it, as from now on we are going
         // to compute the statistics for the next interval
-        bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
-        bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
-        bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, bios_proto_value (stat_msg));
+        fty_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
+        fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
+        fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, fty_proto_value (stat_msg));
 
-        bios_proto_set_value (stat_msg, bios_proto_value (bmsg));
+        fty_proto_set_value (stat_msg, fty_proto_value (bmsg));
         return ret;
     }
 
@@ -266,8 +267,8 @@ cmstats_put (
         assert (false);
 
     // increase the counter
-    bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "%"PRIu64,
-        bios_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0) + 1
+    fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "%"PRIu64,
+        fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0) + 1
     );
 
     return NULL;
@@ -286,12 +287,12 @@ cmstats_delete_asset (cmstats_t *self, const char *asset_name)
     // no autofree here, this list constains only _references_ to keys,
     // which are owned and cleanded up by self->stats on zhashx_delete
 
-    for (bios_proto_t *stat_msg = (bios_proto_t*) zhashx_first (self->stats);
+    for (fty_proto_t *stat_msg = (fty_proto_t*) zhashx_first (self->stats);
                        stat_msg != NULL;
-                       stat_msg = (bios_proto_t*) zhashx_next (self->stats))
+                       stat_msg = (fty_proto_t*) zhashx_next (self->stats))
     {
         const char* key = (const char*) zhashx_cursor (self->stats);
-        if (streq (bios_proto_element_src (stat_msg), asset_name))
+        if (streq (fty_proto_element_src (stat_msg), asset_name))
             zlist_append (keys, (void*) key);
     }
 
@@ -316,16 +317,16 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
     // What is it time now? [ms]
     uint64_t now_ms = (uint64_t) zclock_time ();
 
-    for (bios_proto_t *stat_msg = (bios_proto_t*) zhashx_first (self->stats);
+    for (fty_proto_t *stat_msg = (fty_proto_t*) zhashx_first (self->stats);
                        stat_msg != NULL;
-                       stat_msg = (bios_proto_t*) zhashx_next (self->stats))
+                       stat_msg = (fty_proto_t*) zhashx_next (self->stats))
     {
         // take a key, actually it is the future subject of the message
         const char* key = (const char*) zhashx_cursor (self->stats);
 
         // What is an assigned time for the metric ( in our case it is a left margin in the interval)
-        uint64_t metric_time_s = bios_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
-        uint64_t step = bios_proto_aux_number (stat_msg, AGENT_CM_STEP, 0);
+        uint64_t metric_time_s = fty_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
+        uint64_t step = fty_proto_aux_number (stat_msg, AGENT_CM_STEP, 0);
         // What SHOULD be an assigned time for the NEW stat metric (in our case it is a left margin in the NEW interval)
         uint64_t metric_time_new_s = (now_ms - (now_ms % (step * 1000))) / 1000;
 
@@ -341,19 +342,19 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
         // Should this metic be published and computation restarted?
         if ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) {
             // Yes, it should!
-            bios_proto_t *ret = bios_proto_dup (stat_msg);
+            fty_proto_t *ret = fty_proto_dup (stat_msg);
 
-            bios_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
-            bios_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "0"); // As we do not receive any message, start from ZERO
-            bios_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");  // As we do not receive any message, start from ZERO
+            fty_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
+            fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "0"); // As we do not receive any message, start from ZERO
+            fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");  // As we do not receive any message, start from ZERO
 
-            bios_proto_set_value (stat_msg, "0");  // As we do not receive any message, start from ZERO
+            fty_proto_set_value (stat_msg, "0");  // As we do not receive any message, start from ZERO
 
             if (verbose) {
                 zsys_debug ("cmstats:\tPublishing message wiht subject=%s", key);
-                bios_proto_print (ret);
+                fty_proto_print (ret);
             }
-            zmsg_t *msg = bios_proto_encode (&ret);
+            zmsg_t *msg = fty_proto_encode (&ret);
             int r = mlm_client_send (client, key, &msg);
             if ( r == -1 ) {
                 zsys_error ("cmstats:\tCannot publish statistics");
@@ -372,9 +373,9 @@ cmstats_save (cmstats_t *self, const char *filename)
 
     zconfig_t *root = zconfig_new ("cmstats", NULL);
     int i = 1;
-    for (bios_proto_t *bmsg = (bios_proto_t*) zhashx_first (self->stats);
+    for (fty_proto_t *bmsg = (fty_proto_t*) zhashx_first (self->stats);
                        bmsg != NULL;
-                       bmsg = (bios_proto_t*) zhashx_next (self->stats))
+                       bmsg = (fty_proto_t*) zhashx_next (self->stats))
     {
         // ZCONFIG doesn't allow spaces in keys! -> metric topic cannot be key
         // because it has an asset name inside!
@@ -386,13 +387,13 @@ cmstats_save (cmstats_t *self, const char *filename)
 
         zconfig_t *item = zconfig_new (asset_key, root);
         zconfig_put (item, "metric_topic", metric_topic);
-        zconfig_put (item, "type", bios_proto_type (bmsg));
-        zconfig_put (item, "element_src", bios_proto_element_src (bmsg));
-        zconfig_put (item, "value", bios_proto_value (bmsg));
-        zconfig_put (item, "unit", bios_proto_unit (bmsg));
-        zconfig_putf (item, "ttl", "%"PRIu32, bios_proto_ttl (bmsg));
+        zconfig_put (item, "type", fty_proto_type (bmsg));
+        zconfig_put (item, "element_src", fty_proto_element_src (bmsg));
+        zconfig_put (item, "value", fty_proto_value (bmsg));
+        zconfig_put (item, "unit", fty_proto_unit (bmsg));
+        zconfig_putf (item, "ttl", "%"PRIu32, fty_proto_ttl (bmsg));
 
-        zhash_t *aux = bios_proto_aux (bmsg);
+        zhash_t *aux = fty_proto_aux (bmsg);
         for (const char *aux_value = (const char*) zhash_first (aux);
                          aux_value != NULL;
                          aux_value = (const char*) zhash_next (aux))
@@ -433,21 +434,21 @@ cmstats_load (const char *filename)
     {
         // 1. create bmsg
         const char *metric_topic = zconfig_get (key_config, "metric_topic", "");
-        bios_proto_t *bmsg = bios_proto_new (BIOS_PROTO_METRIC);
-        bios_proto_set_type (bmsg, zconfig_get (key_config, "type", ""));
-        bios_proto_set_element_src (bmsg, zconfig_get (key_config, "element_src", ""));
-        bios_proto_set_value (bmsg, zconfig_get (key_config, "value", ""));
-        bios_proto_set_unit (bmsg, zconfig_get (key_config, "unit", ""));
-        bios_proto_set_ttl (bmsg, atoi (zconfig_get (key_config, "ttl", "0")));
+        fty_proto_t *bmsg = fty_proto_new (FTY_PROTO_METRIC);
+        fty_proto_set_type (bmsg, zconfig_get (key_config, "type", ""));
+        fty_proto_set_element_src (bmsg, zconfig_get (key_config, "element_src", ""));
+        fty_proto_set_value (bmsg, zconfig_get (key_config, "value", ""));
+        fty_proto_set_unit (bmsg, zconfig_get (key_config, "unit", ""));
+        fty_proto_set_ttl (bmsg, atoi (zconfig_get (key_config, "ttl", "0")));
 
-        double value = atof (bios_proto_value (bmsg));
+        double value = atof (fty_proto_value (bmsg));
         if (isnan (value)) {
             zsys_warning ("cmstats_load:\tisnan (%s) for %s@%s, ignoring",
-                    bios_proto_value (bmsg),
-                    bios_proto_type (bmsg),
-                    bios_proto_element_src (bmsg)
+                    fty_proto_value (bmsg),
+                    fty_proto_type (bmsg),
+                    fty_proto_element_src (bmsg)
                     );
-            bios_proto_destroy (&bmsg);
+            fty_proto_destroy (&bmsg);
             continue;
         }
 
@@ -459,16 +460,16 @@ cmstats_load (const char *filename)
             if (strncmp (bmsg_key, "aux.", 4) != 0)
                 continue;
 
-            bios_proto_aux_insert (bmsg, (bmsg_key+4), zconfig_value (bmsg_config));
+            fty_proto_aux_insert (bmsg, (bmsg_key+4), zconfig_value (bmsg_config));
         }
 
-        value = atof (bios_proto_aux_string (bmsg, AGENT_CM_SUM, "0"));
+        value = atof (fty_proto_aux_string (bmsg, AGENT_CM_SUM, "0"));
         if (isnan (value)) {
-            bios_proto_aux_insert (bmsg, AGENT_CM_SUM, "0");
+            fty_proto_aux_insert (bmsg, AGENT_CM_SUM, "0");
         }
 
         zhashx_update (self->stats, metric_topic, bmsg);
-        bios_proto_destroy (&bmsg);
+        fty_proto_destroy (&bmsg);
     }
 
     zconfig_destroy (&root);
@@ -522,15 +523,15 @@ cmstats_test (bool verbose)
 
     // 1. min test
     //  1.1 first metric in
-    zmsg_t *msg = bios_proto_encode_metric (
+    zmsg_t *msg = fty_proto_encode_metric (
             NULL,
             "TYPE",
             "ELEMENT_SRC",
             "100.989999",
             "UNIT",
             10);
-    bios_proto_t *bmsg = bios_proto_decode (&msg);
-    bios_proto_t *stats = NULL;
+    fty_proto_t *bmsg = fty_proto_decode (&msg);
+    fty_proto_t *stats = NULL;
 
     stats = cmstats_put (self, "min", "1s", 1, bmsg);
     assert (!stats);
@@ -538,17 +539,17 @@ cmstats_test (bool verbose)
     assert (!stats);
     stats = cmstats_put (self, "arithmetic_mean", "1s", 1, bmsg);
     assert (!stats);
-    bios_proto_destroy (&bmsg);
+    fty_proto_destroy (&bmsg);
 
     //  1.2 second metric (inside interval) in
-    msg = bios_proto_encode_metric (
+    msg = fty_proto_encode_metric (
             NULL,
             "TYPE",
             "ELEMENT_SRC",
             "42.109999999999",
             "UNIT",
             10);
-    bmsg = bios_proto_decode (&msg);
+    bmsg = fty_proto_decode (&msg);
 
     zclock_sleep (500);
     stats = cmstats_put (self, "min", "1s", 1, bmsg);
@@ -557,54 +558,54 @@ cmstats_test (bool verbose)
     assert (!stats);
     stats = cmstats_put (self, "arithmetic_mean", "1s", 1, bmsg);
     assert (!stats);
-    bios_proto_destroy (&bmsg);
+    fty_proto_destroy (&bmsg);
 
     zclock_sleep (610);
 
     //  1.3 third metric (outside interval) in
-    msg = bios_proto_encode_metric (
+    msg = fty_proto_encode_metric (
             NULL,
             "TYPE",
             "ELEMENT_SRC",
             "42.889999999999",
             "UNIT",
             10);
-    bmsg = bios_proto_decode (&msg);
+    bmsg = fty_proto_decode (&msg);
 
     //  1.4 check the minimal value
     stats = cmstats_put (self, "min", "1s", 1, bmsg);
     assert (stats);
     if (verbose)
-        bios_proto_print (stats);
-    assert (streq (bios_proto_value (stats), "42.11"));
-    assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
-    bios_proto_destroy (&stats);
+        fty_proto_print (stats);
+    assert (streq (fty_proto_value (stats), "42.11"));
+    assert (streq (fty_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
+    fty_proto_destroy (&stats);
 
     //  1.5 check the maximum value
     stats = cmstats_put (self, "max", "1s", 1, bmsg);
     assert (stats);
     if (verbose)
-        bios_proto_print (stats);
-    assert (streq (bios_proto_value (stats), "100.989999"));
-    assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
-    bios_proto_destroy (&stats);
+        fty_proto_print (stats);
+    assert (streq (fty_proto_value (stats), "100.989999"));
+    assert (streq (fty_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
+    fty_proto_destroy (&stats);
 
     //  1.6 check the arithmetic_mean
     stats = cmstats_put (self, "arithmetic_mean", "1s", 1, bmsg);
     assert (stats);
     if (verbose) {
-        bios_proto_print (stats);
-        zsys_info ("avg real: %s", bios_proto_value (stats) );
+        fty_proto_print (stats);
+        zsys_info ("avg real: %s", fty_proto_value (stats) );
         zsys_info ("avg expected: %f", (100.989999+42.11) / 2 );
     }
     char *xxx = NULL;
     int r = asprintf (&xxx, "%.2f", (100.99+42.1) / 2);
     assert (r != -1);   // make gcc @ rhel happy
-    assert (streq (bios_proto_value (stats), xxx));
+    assert (streq (fty_proto_value (stats), xxx));
     zstr_free (&xxx);
-    assert (streq (bios_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
-    bios_proto_destroy (&bmsg);
-    bios_proto_destroy (&stats);
+    assert (streq (fty_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
+    fty_proto_destroy (&bmsg);
+    fty_proto_destroy (&stats);
 
     cmstats_save (self, "src/cmstats.zpl");
     cmstats_destroy (&self);

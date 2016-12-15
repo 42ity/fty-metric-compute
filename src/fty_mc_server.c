@@ -1,5 +1,5 @@
 /*  =========================================================================
-    bios_cm_server - Computation server implementation
+    fty_mc_server - Computation server implementation
 
     Copyright (C) 2016 Eaton
 
@@ -21,12 +21,13 @@
 
 /*
 @header
-    bios_cm_server - Computation server implementation
+    fty_mc_server - Computation server implementation
 @discuss
 @end
 */
 
-#include "agent_cm_classes.h"
+#include "fty_metric_compute_classes.h"
+#include "fty_metric_compute.h"
 
 // TODO: move to class sometime
 // It is a "CM" entity
@@ -92,10 +93,10 @@ cm_new (const char* name)
 }
 
 //  --------------------------------------------------------------------------
-//  bios_cm_server actor
+//  fty_mc_server actor
 
 void
-bios_cm_server (zsock_t *pipe, void *args)
+fty_mc_server (zsock_t *pipe, void *args)
 {
 
     cm_t *self = cm_new ((const char*) args);
@@ -291,40 +292,40 @@ bios_cm_server (zsock_t *pipe, void *args)
             zsys_error ("%s:\tmlm_client_recv() == NULL", self->name);
             continue;
         }
-        bios_proto_t *bmsg = bios_proto_decode (&msg);
+        fty_proto_t *bmsg = fty_proto_decode (&msg);
 
         // If we received an asset message
         // * "delete" or "retire"  -> drop all computations on that asset
         // *  other                -> ignore it, as it doesn't impact this agent
-        if ( bios_proto_id (bmsg) == BIOS_PROTO_ASSET ) {
-            const char *op = bios_proto_operation (bmsg);
+        if ( fty_proto_id (bmsg) == FTY_PROTO_ASSET ) {
+            const char *op = fty_proto_operation (bmsg);
             if (streq (op, "delete")
             ||  streq (op, "retire"))
-                cmstats_delete_asset (self->stats, bios_proto_name (bmsg));
+                cmstats_delete_asset (self->stats, fty_proto_name (bmsg));
 
-            bios_proto_destroy (&bmsg);
+            fty_proto_destroy (&bmsg);
             continue;
         }
 
         // If we received a metric message
         // update statistics for all steps and types
         // All statistics are computed for "left side of the interval"
-        if ( bios_proto_id (bmsg) == BIOS_PROTO_METRIC ) {
+        if ( fty_proto_id (bmsg) == FTY_PROTO_METRIC ) {
         
             // get rid of messages with empty or null element_src
-            if (bios_proto_element_src (bmsg) == NULL || streq (bios_proto_element_src (bmsg), ""))
+            if (fty_proto_element_src (bmsg) == NULL || streq (fty_proto_element_src (bmsg), ""))
             {
                 zsys_warning ("%s: invalid \'element_src\' = (%s), \tsubject=%s, sender=%s",
                         self->name,            
-                        bios_proto_element_src (bmsg) ?  bios_proto_element_src (bmsg) : "null",       
+                        fty_proto_element_src (bmsg) ?  fty_proto_element_src (bmsg) : "null",       
                         mlm_client_subject (self->client),
                         mlm_client_sender (self->client));
-                bios_proto_destroy(&bmsg);
+                fty_proto_destroy(&bmsg);
                 continue;
             }
                     
             // sometimes we do have nan in values, report if we get something like that on METRICS
-            double value = atof (bios_proto_value (bmsg));
+            double value = atof (fty_proto_value (bmsg));
             if (isnan (value)) {
                 zsys_warning ("%s:\tisnan ('%s'), subject='%s', sender='%s'",
                         self->name,      
@@ -332,7 +333,7 @@ bios_cm_server (zsock_t *pipe, void *args)
                         mlm_client_subject (self->client),
                         mlm_client_sender (self->client)
                         );
-                bios_proto_destroy (&bmsg);
+                fty_proto_destroy (&bmsg);
                 continue;
             }
 
@@ -345,14 +346,14 @@ bios_cm_server (zsock_t *pipe, void *args)
                         type = (const char*) zlist_next (self->types))
                 {
                     const char *step = (const char*) cmsteps_cursor (self->steps);
-                    bios_proto_t *stat_msg = cmstats_put (self->stats, type, step, *step_p, bmsg);
+                    fty_proto_t *stat_msg = cmstats_put (self->stats, type, step, *step_p, bmsg);
                     if (stat_msg) {
                         char *subject = zsys_sprintf ("%s@%s",
-                                bios_proto_type (stat_msg),
-                                bios_proto_element_src (stat_msg));
+                                fty_proto_type (stat_msg),
+                                fty_proto_element_src (stat_msg));
                         assert (subject);
 
-                        zmsg_t *msg = bios_proto_encode (&stat_msg);
+                        zmsg_t *msg = fty_proto_encode (&stat_msg);
                         int r = mlm_client_send (self->client, subject, &msg);
                         if ( r == -1 ) {
                             zsys_error ("%s:\tCannot publish statistics", self->name);
@@ -361,7 +362,7 @@ bios_cm_server (zsock_t *pipe, void *args)
                     }
                 }
             }
-            bios_proto_destroy (&bmsg);
+            fty_proto_destroy (&bmsg);
             continue;
         }
 
@@ -369,7 +370,7 @@ bios_cm_server (zsock_t *pipe, void *args)
         zsys_warning ("%s:\tUnexpected message from sender=%s, subject=%s",
                 self->name, mlm_client_sender(self->client), mlm_client_subject(self->client));
 
-        bios_proto_destroy (&bmsg);
+        fty_proto_destroy (&bmsg);
     }
     // end of main loop, so we are going to die soon
 
@@ -391,9 +392,9 @@ bios_cm_server (zsock_t *pipe, void *args)
 //  --------------------------------------------------------------------------
 //  Self test of this class
 void
-bios_cm_server_test (bool verbose)
+fty_mc_server_test (bool verbose)
 {
-    printf (" * bios_cm_server:");
+    printf (" * fty_mc_server:");
     if (verbose)
         printf ("\n");
 
@@ -410,27 +411,27 @@ bios_cm_server_test (bool verbose)
 
     mlm_client_t *producer = mlm_client_new ();
     mlm_client_connect (producer, endpoint, 5000, "publisher");
-    mlm_client_set_producer (producer, BIOS_PROTO_STREAM_METRICS);
+    mlm_client_set_producer (producer, FTY_PROTO_STREAM_METRICS);
 
     // 1s consumer
     mlm_client_t *consumer_1s = mlm_client_new ();
     mlm_client_connect (consumer_1s, endpoint, 5000, "consumer_1s");
-    mlm_client_set_consumer (consumer_1s, BIOS_PROTO_STREAM_METRICS, ".*(min|max|arithmetic_mean)_1s.*");
+    mlm_client_set_consumer (consumer_1s, FTY_PROTO_STREAM_METRICS, ".*(min|max|arithmetic_mean)_1s.*");
 
     // 5s consumer
     mlm_client_t *consumer_5s = mlm_client_new ();
     mlm_client_connect (consumer_5s, endpoint, 5000, "consumer_5s");
-    mlm_client_set_consumer (consumer_5s, BIOS_PROTO_STREAM_METRICS, ".*(min|max|arithmetic_mean)_5s.*");
+    mlm_client_set_consumer (consumer_5s, FTY_PROTO_STREAM_METRICS, ".*(min|max|arithmetic_mean)_5s.*");
 
-    zactor_t *cm_server = zactor_new (bios_cm_server, "bios-cm-server");
+    zactor_t *cm_server = zactor_new (fty_mc_server, "fty-mc-server");
     if (verbose)
         zstr_sendx (cm_server, "VERBOSE", NULL);
     zstr_sendx (cm_server, "TYPES", "min", "max", "arithmetic_mean", NULL);
     zstr_sendx (cm_server, "STEPS", "1s", "5s", NULL);
     zstr_sendx (cm_server, "DIR", "src", NULL);
     zstr_sendx (cm_server, "CONNECT", endpoint, NULL);
-    zstr_sendx (cm_server, "PRODUCER", BIOS_PROTO_STREAM_METRICS, NULL);
-    zstr_sendx (cm_server, "CONSUMER", BIOS_PROTO_STREAM_METRICS, ".*", NULL);
+    zstr_sendx (cm_server, "PRODUCER", FTY_PROTO_STREAM_METRICS, NULL);
+    zstr_sendx (cm_server, "CONSUMER", FTY_PROTO_STREAM_METRICS, ".*", NULL);
     zclock_sleep (500);
 
     //XXX: the test is sensitive on timing!!!
@@ -453,7 +454,7 @@ bios_cm_server_test (bool verbose)
     if (verbose)
         zsys_debug ("TEST_START_MS=%"PRIi64, TEST_START_MS);
 
-    zmsg_t *msg = bios_proto_encode_metric (
+    zmsg_t *msg = fty_proto_encode_metric (
             NULL,
             "realpower.default",
             "DEV1",
@@ -463,7 +464,7 @@ bios_cm_server_test (bool verbose)
     mlm_client_send (producer, "realpower.default@DEV1", &msg);
 
     // empty element_src
-    msg = bios_proto_encode_metric (
+    msg = fty_proto_encode_metric (
             NULL,
             "realpower.default",
             "",
@@ -472,7 +473,7 @@ bios_cm_server_test (bool verbose)
             10);
     mlm_client_send (producer, "realpower.default@", &msg);
 
-    msg = bios_proto_encode_metric (
+    msg = fty_proto_encode_metric (
             NULL,
             "realpower.default",
             "DEV1",
@@ -486,40 +487,40 @@ bios_cm_server_test (bool verbose)
 
     // now we should have first 1s min/max/avg values published - from polling
     for (int i = 0; i != 3; i++) {
-        bios_proto_t *bmsg = NULL;
+        fty_proto_t *bmsg = NULL;
         msg = mlm_client_recv (consumer_1s);
-        bmsg = bios_proto_decode (&msg);
+        bmsg = fty_proto_decode (&msg);
 
         if (verbose) {
             zsys_debug ("subject=%s", mlm_client_subject (consumer_1s));
-            bios_proto_print (bmsg);
+            fty_proto_print (bmsg);
         }
 
-        const char *type = bios_proto_aux_string (bmsg, AGENT_CM_TYPE, "");
+        const char *type = fty_proto_aux_string (bmsg, AGENT_CM_TYPE, "");
         if (streq (type, "min")) {
             assert (streq (mlm_client_subject (consumer_1s), "realpower.default_min_1s@DEV1"));
-            assert (streq (bios_proto_value (bmsg), "50.00"));
+            assert (streq (fty_proto_value (bmsg), "50.00"));
         }
         else
         if (streq (type, "max")) {
             assert (streq (mlm_client_subject (consumer_1s), "realpower.default_max_1s@DEV1"));
-            assert (streq (bios_proto_value (bmsg), "100"));
+            assert (streq (fty_proto_value (bmsg), "100"));
         }
         else
         if (streq (type, "arithmetic_mean")) {
             assert (streq (mlm_client_subject (consumer_1s), "realpower.default_arithmetic_mean_1s@DEV1"));
-            assert (streq (bios_proto_value (bmsg), "75.00"));
+            assert (streq (fty_proto_value (bmsg), "75.00"));
         }
         else
             assert (false);
 
-        bios_proto_destroy (&bmsg);
+        fty_proto_destroy (&bmsg);
     }
 
     // goto T+3100ms
     zclock_sleep (5000 - (zclock_time () - TEST_START_MS) - 1900);
     // send some 1s min/max to differentiate the 1s and 5s min/max later on
-    msg = bios_proto_encode_metric (
+    msg = fty_proto_encode_metric (
             NULL,
             "realpower.default",
             "DEV1",
@@ -527,7 +528,7 @@ bios_cm_server_test (bool verbose)
             "UNIT",
             10);
     mlm_client_send (producer, "realpower.default@DEV1", &msg);
-    msg = bios_proto_encode_metric (
+    msg = fty_proto_encode_metric (
             NULL,
             "realpower.default",
             "DEV1",
@@ -543,17 +544,17 @@ bios_cm_server_test (bool verbose)
     for (int i = 0; i != 9; i++)
     {
         msg = mlm_client_recv (consumer_1s);
-        bios_proto_t *bmsg = bios_proto_decode (&msg);
+        fty_proto_t *bmsg = fty_proto_decode (&msg);
         if (verbose) {
             zsys_debug ("subject=%s", mlm_client_subject (consumer_1s));
-            bios_proto_print (bmsg);
+            fty_proto_print (bmsg);
         }
         /* It is not reliable under memcheck, because of timing
         static const char* values[] = {"0", "42.000000", "242.000000", "142.000000"};
         bool test = false;
         for (int j =0; j < sizeof (values); j++)
         {
-            test = streq (values [j], bios_proto_value (bmsg));
+            test = streq (values [j], fty_proto_value (bmsg));
             if (test) {
                 break;
             }
@@ -562,7 +563,7 @@ bios_cm_server_test (bool verbose)
         // instead of "Assertion failed"
         assert (test == true);
         */
-        bios_proto_destroy (&bmsg);
+        fty_proto_destroy (&bmsg);
     }
 
     // T+5100s
@@ -570,38 +571,38 @@ bios_cm_server_test (bool verbose)
 
     // now we have 2 times 1s and 5s min/max as well
     for (int i = 0; i != 3; i++) {
-        bios_proto_t *bmsg = NULL;
+        fty_proto_t *bmsg = NULL;
         msg = mlm_client_recv (consumer_5s);
-        bmsg = bios_proto_decode (&msg);
+        bmsg = fty_proto_decode (&msg);
 
         if (verbose) {
             zsys_debug ("zclock_time=%"PRIi64 "ms", zclock_time ());
             zsys_debug ("subject=%s", mlm_client_subject (consumer_5s));
-            bios_proto_print (bmsg);
+            fty_proto_print (bmsg);
         }
 
-        const char *type = bios_proto_aux_string (bmsg, AGENT_CM_TYPE, "");
+        const char *type = fty_proto_aux_string (bmsg, AGENT_CM_TYPE, "");
 
         if (streq (type, "min")) {
             assert (streq (mlm_client_subject (consumer_5s), "realpower.default_min_5s@DEV1"));
-            assert (streq (bios_proto_value (bmsg), "42.00"));
+            assert (streq (fty_proto_value (bmsg), "42.00"));
         }
         else
         if (streq (type, "max")) {
             assert (streq (mlm_client_subject (consumer_5s), "realpower.default_max_5s@DEV1"));
-            assert (streq (bios_proto_value (bmsg), "242.00"));
+            assert (streq (fty_proto_value (bmsg), "242.00"));
         }
         else
         if (streq (type, "arithmetic_mean")) {
             assert (streq (mlm_client_subject (consumer_5s), "realpower.default_arithmetic_mean_5s@DEV1"));
             // (100 + 50 + 42 + 242) / 5
-            zsys_debug ("value=%s", bios_proto_value (bmsg));
-            assert (streq (bios_proto_value (bmsg), "108.50"));
+            zsys_debug ("value=%s", fty_proto_value (bmsg));
+            assert (streq (fty_proto_value (bmsg), "108.50"));
         }
         else
             assert (false);
 
-        bios_proto_destroy (&bmsg);
+        fty_proto_destroy (&bmsg);
     }
     zactor_destroy (&cm_server);
     zclock_sleep (500);

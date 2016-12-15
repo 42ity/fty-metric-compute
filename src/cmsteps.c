@@ -26,7 +26,7 @@
 @end
 */
 
-#include "agent_cm_classes.h"
+#include "fty_metric_compute_classes.h"
 
 //  Structure of our class
 

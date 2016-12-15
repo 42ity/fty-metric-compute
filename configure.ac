@@ -7,7 +7,7 @@
 # Process this file with autoconf to produce a configure script.
 AC_PREREQ(2.61)
 #
-AC_INIT([agent-cm],[0.7.0],[bios@eaton.com])
+AC_INIT([fty-metric-compute],[0.7.0],[eatonipcopensource@eaton.com])
 
 AC_CONFIG_AUX_DIR(config)
 AC_CONFIG_MACRO_DIR(config)
@@ -20,11 +20,11 @@ PV_MAJOR=`echo $PACKAGE_VERSION | cut -d . -f 1`
 PV_MINOR=`echo $PACKAGE_VERSION | cut -d . -f 2`
 PV_PATCH=`echo $PACKAGE_VERSION | cut -d . -f 3`
 AC_DEFINE_UNQUOTED([PACKAGE_VERSION_MAJOR],[$PV_MAJOR],
-    [AGENT_CM major version])
+    [FTY_METRIC_COMPUTE major version])
 AC_DEFINE_UNQUOTED([PACKAGE_VERSION_MINOR],[$PV_MINOR],
-    [AGENT_CM minor version])
+    [FTY_METRIC_COMPUTE minor version])
 AC_DEFINE_UNQUOTED([PACKAGE_VERSION_PATCH],[$PV_PATCH],
-    [AGENT_CM patchlevel])
+    [FTY_METRIC_COMPUTE patchlevel])
 # This lets us use PACKAGE_VERSION in Makefiles
 AC_SUBST(PACKAGE_VERSION)
 
@@ -35,12 +35,12 @@ AC_SUBST(PACKAGE_VERSION)
 # know exactly what you're doing and have read and understand
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
 #
-# libagent_cm -version-info
+# libfty_metric_compute -version-info
 LTVER="0:7:0"
 AC_SUBST(LTVER)
 
 # Capture c flags
-AGENT_CM_ORIG_CFLAGS="${CFLAGS:-none}"
+FTY_METRIC_COMPUTE_ORIG_CFLAGS="${CFLAGS:-none}"
 
 # Checks for programs
 AC_PROG_CC
@@ -55,18 +55,21 @@ PKG_PROG_PKG_CONFIG
 # Code coverage
 AC_ARG_WITH(gcov, [AS_HELP_STRING([--with-gcov=yes/no],
                   [With GCC Code Coverage reporting])],
-                  [AGENT_CM_GCOV="$withval"])
+                  [FTY_METRIC_COMPUTE_GCOV="$withval"])
 
-if test "x${AGENT_CM_GCOV}" == "xyes"; then
+if test "x${FTY_METRIC_COMPUTE_GCOV}" == "xyes"; then
     CFLAGS="-O0 -g -fprofile-arcs -ftest-coverage"
 
-    if test "x${AGENT_CM_ORIG_CFLAGS}" != "xnone"; then
-        CFLAGS="${CFLAGS} ${AGENT_CM_ORIG_CFLAGS}"
+    if test "x${FTY_METRIC_COMPUTE_ORIG_CFLAGS}" != "xnone"; then
+        CFLAGS="${CFLAGS} ${FTY_METRIC_COMPUTE_ORIG_CFLAGS}"
     fi
     AM_CONDITIONAL(WITH_GCOV, true)
 else
     AM_CONDITIONAL(WITH_GCOV, false)
 fi
+
+# Will be used to add flags to pkg-config useful when apps want to statically link
+PKGCFG_LIBS_PRIVATE=""
 
 PREVIOUS_CFLAGS="${CFLAGS}"
 PREVIOUS_LIBS="${LIBS}"
@@ -76,6 +79,7 @@ was_libzmq_check_lib_detected=no
 
 PKG_CHECK_MODULES([libzmq], [libzmq >= 0.0.0],
     [
+        PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $libzmq_LIBS"
     ],
     [
         AC_ARG_WITH([libzmq],
@@ -108,6 +112,7 @@ PKG_CHECK_MODULES([libzmq], [libzmq >= 0.0.0],
                 AC_SUBST([libzmq_CFLAGS],[${libzmq_synthetic_cflags}])
                 AC_SUBST([libzmq_LIBS],[${libzmq_synthetic_libs}])
                 was_libzmq_check_lib_detected=yes
+                PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE -lzmq"
             ],
             [AC_MSG_ERROR([cannot link with -lzmq, install libzmq])])
     ])
@@ -121,6 +126,7 @@ was_czmq_check_lib_detected=no
 
 PKG_CHECK_MODULES([czmq], [libczmq >= 0.0.0],
     [
+        PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $czmq_LIBS"
     ],
     [
         AC_ARG_WITH([libczmq],
@@ -144,7 +150,7 @@ PKG_CHECK_MODULES([czmq], [libczmq >= 0.0.0],
         fi
 
 
-        AC_CHECK_LIB([czmq], [zctx_test],
+        AC_CHECK_LIB([czmq], [zhashx_test],
             [
                 CFLAGS="${czmq_synthetic_cflags} ${CFLAGS}"
                 LDFLAGS="${czmq_synthetic_libs} ${LDFLAGS}"
@@ -153,6 +159,7 @@ PKG_CHECK_MODULES([czmq], [libczmq >= 0.0.0],
                 AC_SUBST([czmq_CFLAGS],[${czmq_synthetic_cflags}])
                 AC_SUBST([czmq_LIBS],[${czmq_synthetic_libs}])
                 was_czmq_check_lib_detected=yes
+                PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE -lczmq"
             ],
             [AC_MSG_ERROR([cannot link with -lczmq, install libczmq])])
     ])
@@ -166,6 +173,7 @@ was_malamute_check_lib_detected=no
 
 PKG_CHECK_MODULES([malamute], [libmlm >= 0.0.0],
     [
+        PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $malamute_LIBS"
     ],
     [
         AC_ARG_WITH([libmlm],
@@ -198,6 +206,7 @@ PKG_CHECK_MODULES([malamute], [libmlm >= 0.0.0],
                 AC_SUBST([malamute_CFLAGS],[${malamute_synthetic_cflags}])
                 AC_SUBST([malamute_LIBS],[${malamute_synthetic_libs}])
                 was_malamute_check_lib_detected=yes
+                PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE -lmlm"
             ],
             [AC_MSG_ERROR([cannot link with -lmlm, install libmlm])])
     ])
@@ -207,60 +216,64 @@ if test "x$was_malamute_check_lib_detected" = "xno"; then
     LIBS="${malamute_LIBS} ${LIBS}"
 fi
 
-was_biosproto_check_lib_detected=no
+was_fty_proto_check_lib_detected=no
 
-PKG_CHECK_MODULES([biosproto], [libbiosproto >= 0.0.0],
+PKG_CHECK_MODULES([fty_proto], [libfty_proto >= 0.0.0],
     [
+        PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $fty_proto_LIBS"
     ],
     [
-        AC_ARG_WITH([libbiosproto],
+        AC_ARG_WITH([libfty_proto],
             [
-                AS_HELP_STRING([--with-libbiosproto],
-                [Specify libbiosproto prefix])
+                AS_HELP_STRING([--with-libfty_proto],
+                [Specify libfty_proto prefix])
             ],
-            [search_libbiosproto="yes"],
+            [search_libfty_proto="yes"],
             [])
 
-        biosproto_synthetic_cflags=""
-        biosproto_synthetic_libs="-lbiosproto"
+        fty_proto_synthetic_cflags=""
+        fty_proto_synthetic_libs="-lftyproto"
 
-        if test "x$search_libbiosproto" = "xyes"; then
-            if test -r "${with_libbiosproto}/include/biosproto.h"; then
-                biosproto_synthetic_cflags="-I${with_libbiosproto}/include"
-                biosproto_synthetic_libs="-L${with_libbiosproto}/lib -lbiosproto"
+        if test "x$search_libfty_proto" = "xyes"; then
+            if test -r "${with_libfty_proto}/include/ftyproto.h"; then
+                fty_proto_synthetic_cflags="-I${with_libfty_proto}/include"
+                fty_proto_synthetic_libs="-L${with_libfty_proto}/lib -lftyproto"
             else
-                AC_MSG_ERROR([${with_libbiosproto}/include/biosproto.h not found. Please check libbiosproto prefix])
+                AC_MSG_ERROR([${with_libfty_proto}/include/ftyproto.h not found. Please check libfty_proto prefix])
             fi
         fi
 
 
-        AC_CHECK_LIB([biosproto], [bios_proto_test],
+        AC_CHECK_LIB([ftyproto], [fty_proto_test],
             [
-                CFLAGS="${biosproto_synthetic_cflags} ${CFLAGS}"
-                LDFLAGS="${biosproto_synthetic_libs} ${LDFLAGS}"
-                LIBS="${biosproto_synthetic_libs} ${LIBS}"
+                CFLAGS="${fty_proto_synthetic_cflags} ${CFLAGS}"
+                LDFLAGS="${fty_proto_synthetic_libs} ${LDFLAGS}"
+                LIBS="${fty_proto_synthetic_libs} ${LIBS}"
 
-                AC_SUBST([biosproto_CFLAGS],[${biosproto_synthetic_cflags}])
-                AC_SUBST([biosproto_LIBS],[${biosproto_synthetic_libs}])
-                was_biosproto_check_lib_detected=yes
+                AC_SUBST([fty_proto_CFLAGS],[${fty_proto_synthetic_cflags}])
+                AC_SUBST([fty_proto_LIBS],[${fty_proto_synthetic_libs}])
+                was_fty_proto_check_lib_detected=yes
+                PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE -lftyproto"
             ],
-            [AC_MSG_ERROR([cannot link with -lbiosproto, install libbiosproto])])
+            [AC_MSG_ERROR([cannot link with -lftyproto, install libfty_proto])])
     ])
 
-if test "x$was_biosproto_check_lib_detected" = "xno"; then
-    CFLAGS="${biosproto_CFLAGS} ${CFLAGS}"
-    LIBS="${biosproto_LIBS} ${LIBS}"
+if test "x$was_fty_proto_check_lib_detected" = "xno"; then
+    CFLAGS="${fty_proto_CFLAGS} ${CFLAGS}"
+    LIBS="${fty_proto_LIBS} ${LIBS}"
 fi
 
 CFLAGS="${PREVIOUS_CFLAGS}"
 LIBS="${PREVIOUS_LIBS}"
 
+AC_SUBST(pkg_config_libs_private, $PKGCFG_LIBS_PRIVATE)
+
 # Platform specific checks
-agent_cm_on_mingw32="no"
-agent_cm_on_cygwin="no"
-agent_cm_on_android="no"
-agent_cm_on_linux="no"
-agent_cm_on_gnu="no"
+fty_metric_compute_on_mingw32="no"
+fty_metric_compute_on_cygwin="no"
+fty_metric_compute_on_android="no"
+fty_metric_compute_on_linux="no"
+fty_metric_compute_on_gnu="no"
 
 # Host specific checks
 AC_CANONICAL_HOST
@@ -273,106 +286,118 @@ AC_ARG_WITH([docs],
     [with_docs=$withval])
 
 if test "x$with_docs" = "xno"; then
-    agent_cm_build_doc="no"
-    agent_cm_install_man="no"
+    fty_metric_compute_build_doc="no"
+    fty_metric_compute_install_man="no"
 else
     # Determine whether or not documentation should be built and installed.
-    agent_cm_build_doc="yes"
-    agent_cm_install_man="yes"
+    fty_metric_compute_build_doc="yes"
+    fty_metric_compute_install_man="yes"
 
     # Check for asciidoc and xmlto and don't build the docs if these are not installed.
-    AC_CHECK_PROG(agent_cm_have_asciidoc, asciidoc, yes, no)
-    AC_CHECK_PROG(agent_cm_have_xmlto, xmlto, yes, no)
-    if test "x$agent_cm_have_asciidoc" = "xno" -o "x$agent_cm_have_xmlto" = "xno"; then
-        agent_cm_build_doc="no"
+    AC_CHECK_PROG(fty_metric_compute_have_asciidoc, asciidoc, yes, no)
+    AC_CHECK_PROG(fty_metric_compute_have_xmlto, xmlto, yes, no)
+    if test "x$fty_metric_compute_have_asciidoc" = "xno" -o "x$fty_metric_compute_have_xmlto" = "xno"; then
+        fty_metric_compute_build_doc="no"
         # Tarballs built with 'make dist' ship with prebuilt documentation.
-        if ! test -f doc/agent_cm.7; then
-            agent_cm_install_man="no"
-            AC_MSG_WARN([You are building an unreleased version of AGENT-CM and asciidoc or xmlto are not installed.])
+        if ! test -f doc/fty-metric-compute.7; then
+            fty_metric_compute_install_man="no"
+            AC_MSG_WARN([You are building an unreleased version of FTY-METRIC-COMPUTE and asciidoc or xmlto are not installed.])
             AC_MSG_WARN([Documentation will not be built and manual pages will not be installed.])
         fi
     fi
 fi
 AC_MSG_CHECKING([whether to build documentation])
-AC_MSG_RESULT([$agent_cm_build_doc])
+AC_MSG_RESULT([$fty_metric_compute_build_doc])
 AC_MSG_CHECKING([whether to install manpages])
-AC_MSG_RESULT([$agent_cm_install_man])
+AC_MSG_RESULT([$fty_metric_compute_install_man])
 
-# Set some default features required by libagent_cm code.
-CPPFLAGS="-D_REENTRANT -D_THREAD_SAFE $CPPFLAGS"
+# Set some default features required by libfty_metric_compute code.
+CPPFLAGS="-DFTY_METRIC_COMPUTE_INTERNAL_BUILD -D_REENTRANT -D_THREAD_SAFE $CPPFLAGS"
 
 # OS-specific tests
 case "${host_os}" in
     *linux*)
         # Define on Linux to enable all library features
         CPPFLAGS="-D_GNU_SOURCE -DLINUX $CPPFLAGS"
-        AC_DEFINE(AGENT_CM_HAVE_LINUX, 1, [Have Linux OS])
-        agent_cm_on_linux="yes"
+        AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_LINUX, 1, [Have Linux OS])
+        fty_metric_compute_on_linux="yes"
 
         case "${host_os}" in
             *android*)
-                AC_DEFINE(AGENT_CM_HAVE_ANDROID, 1, [Have Android OS])
-                agent_cm_on_android="yes"
+                AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_ANDROID, 1, [Have Android OS])
+                fty_metric_compute_on_android="yes"
             ;;
         esac
         ;;
     *solaris*)
         # Define on Solaris to enable all library features
         CPPFLAGS="-D_PTHREADS $CPPFLAGS"
-        AC_DEFINE(AGENT_CM_HAVE_SOLARIS, 1, [Have Solaris OS])
+        # Allow definitions of common OS-provided functions that are not in old standards
+        CPPFLAGS="-D__EXTENSIONS__ $CPPFLAGS"
+        AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_SOLARIS, 1, [Have Solaris OS])
         CFLAGS="${CFLAGS} -lsocket -lssp"
         ;;
     *freebsd*)
         # Define on FreeBSD to enable all library features
         CPPFLAGS="-D__BSD_VISIBLE $CPPFLAGS"
-        AC_DEFINE(AGENT_CM_HAVE_FREEBSD, 1, [Have FreeBSD OS])
+        AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_FREEBSD, 1, [Have FreeBSD OS])
         ;;
     *darwin*)
         # Define on Darwin to enable all library features
         CPPFLAGS="-D_DARWIN_C_SOURCE $CPPFLAGS"
-        AC_DEFINE(AGENT_CM_HAVE_OSX, 1, [Have DarwinOSX OS])
+        AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_OSX, 1, [Have DarwinOSX OS])
         ;;
     *netbsd*)
         # Define on NetBSD to enable all library features
         CPPFLAGS="-D_NETBSD_SOURCE $CPPFLAGS"
-        AC_DEFINE(AGENT_CM_HAVE_NETBSD, 1, [Have NetBSD OS])
+        AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_NETBSD, 1, [Have NetBSD OS])
         ;;
     *openbsd*)
         # Define on OpenBSD to enable all library features
         CPPFLAGS="-D_BSD_SOURCE $CPPFLAGS"
-        AC_DEFINE(AGENT_CM_HAVE_OPENBSD, 1, [Have OpenBSD OS])
+        AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_OPENBSD, 1, [Have OpenBSD OS])
         ;;
     *nto-qnx*)
-        AC_DEFINE(AGENT_CM_HAVE_QNXNTO, 1, [Have QNX Neutrino OS])
+        AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_QNXNTO, 1, [Have QNX Neutrino OS])
         ;;
     *aix*)
-        AC_DEFINE(AGENT_CM_HAVE_AIX, 1, [Have AIX OS])
+        AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_AIX, 1, [Have AIX OS])
         ;;
     *hpux*)
         # Define on HP-UX to enable all library features
         CPPFLAGS="-D_POSIX_C_SOURCE=200112L"
-        AC_DEFINE(AGENT_CM_HAVE_HPUX, 1, [Have HPUX OS])
+        AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_HPUX, 1, [Have HPUX OS])
         ;;
     *mingw32*)
-        AC_DEFINE(AGENT_CM_HAVE_WINDOWS, 1, [Have Windows OS])
-        AC_DEFINE(AGENT_CM_HAVE_MINGW32, 1, [Have MinGW32])
+        AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_WINDOWS, 1, [Have Windows OS])
+        AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_MINGW32, 1, [Have MinGW32])
         AC_CHECK_HEADERS(windows.h)
-        agent_cm_on_mingw32="yes"
-        agent_cm_install_man="no"
+        fty_metric_compute_on_mingw32="yes"
+        fty_metric_compute_install_man="no"
+        ;;
+    *mingw64*)
+        # Define on MINGW64 to enable all libeary features
+        # Disable format error due to incomplete ANSI C
+        CPPFLAGS="-Wno-error=format -D_XOPEN_SOURCE $CPPFLAGS"
+        AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_WINDOWS, 1, [Have Windows OS])
+        AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_MINGW32, 1, [Have MinGW32])
+        AC_CHECK_HEADERS(windows.h)
+        fty_metric_compute_on_mingw32="yes"
+        fty_metric_compute_install_man="no"
         ;;
     *cygwin*)
         # Define on Cygwin to enable all library features
         CPPFLAGS="-D_GNU_SOURCE $CPPFLAGS"
-        AC_DEFINE(AGENT_CM_HAVE_CYGWIN, 1, [Have Cygwin])
-        agent_cm_on_cygwin="yes"
+        AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_CYGWIN, 1, [Have Cygwin])
+        fty_metric_compute_on_cygwin="yes"
         ;;
     gnu*)
         # Define on GNU/Hurd to enable all library features
         if test "x$GXX" = "xyes"; then
             CPPFLAGS="-D_GNU_SOURCE $CPPFLAGS"
         fi
-        AC_DEFINE(AGENT_CM_HAVE_GNU, 1, [Have GNU/Hurd OS])
-        agent_cm_on_gnu="yes"
+        AC_DEFINE(FTY_METRIC_COMPUTE_HAVE_GNU, 1, [Have GNU/Hurd OS])
+        fty_metric_compute_on_gnu="yes"
         ;;
     *)
         AC_MSG_ERROR([unsupported system: ${host_os}])
@@ -409,33 +434,33 @@ if test "x$GCC" = "xyes"; then
 fi
 
 AM_CONDITIONAL(ENABLE_SHARED, test "x$enable_shared" = "xyes")
-AM_CONDITIONAL(ON_MINGW, test "x$agent_cm_on_mingw32" = "xyes")
-AM_CONDITIONAL(ON_CYGWIN, test "x$agent_cm_on_cygwin" = "xyes")
-AM_CONDITIONAL(ON_ANDROID, test "x$agent_cm_on_android" = "xyes")
-AM_CONDITIONAL(ON_LINUX, test "x$agent_cm_on_linux" = "xyes")
-AM_CONDITIONAL(ON_GNU, test "x$agent_cm_on_gnu" = "xyes")
-AM_CONDITIONAL(INSTALL_MAN, test "x$agent_cm_install_man" = "xyes")
-AM_CONDITIONAL(BUILD_DOC, test "x$agent_cm_build_doc" = "xyes")
+AM_CONDITIONAL(ON_MINGW, test "x$fty_metric_compute_on_mingw32" = "xyes")
+AM_CONDITIONAL(ON_CYGWIN, test "x$fty_metric_compute_on_cygwin" = "xyes")
+AM_CONDITIONAL(ON_ANDROID, test "x$fty_metric_compute_on_android" = "xyes")
+AM_CONDITIONAL(ON_LINUX, test "x$fty_metric_compute_on_linux" = "xyes")
+AM_CONDITIONAL(ON_GNU, test "x$fty_metric_compute_on_gnu" = "xyes")
+AM_CONDITIONAL(INSTALL_MAN, test "x$fty_metric_compute_install_man" = "xyes")
+AM_CONDITIONAL(BUILD_DOC, test "x$fty_metric_compute_build_doc" = "xyes")
 
-# Check for bios-agent-cm intent
-AC_ARG_ENABLE([bios-agent-cm],
-    AS_HELP_STRING([--enable-bios-agent-cm],
-        [Compile and install 'bios-agent-cm' [default=yes]]),
-    [enable_bios_agent_cm=$enableval],
-    [enable_bios_agent_cm=yes])
+# Check for fty-metric-compute intent
+AC_ARG_ENABLE([fty-metric-compute],
+    AS_HELP_STRING([--enable-fty-metric-compute],
+        [Compile and install 'fty-metric-compute' [default=yes]]),
+    [enable_fty_metric_compute=$enableval],
+    [enable_fty_metric_compute=yes])
 
-AM_CONDITIONAL([ENABLE_BIOS_AGENT_CM], [test x$enable_bios_agent_cm != xno])
-AM_COND_IF([ENABLE_BIOS_AGENT_CM], [AC_MSG_NOTICE([ENABLE_BIOS_AGENT_CM defined])])
+AM_CONDITIONAL([ENABLE_FTY_METRIC_COMPUTE], [test x$enable_fty_metric_compute != xno])
+AM_COND_IF([ENABLE_FTY_METRIC_COMPUTE], [AC_MSG_NOTICE([ENABLE_FTY_METRIC_COMPUTE defined])])
 
-# Check for agent_cm_selftest intent
-AC_ARG_ENABLE([agent_cm_selftest],
-    AS_HELP_STRING([--enable-agent_cm_selftest],
-        [Compile 'agent_cm_selftest' in src [default=yes]]),
-    [enable_agent_cm_selftest=$enableval],
-    [enable_agent_cm_selftest=yes])
+# Check for fty_metric_compute_selftest intent
+AC_ARG_ENABLE([fty_metric_compute_selftest],
+    AS_HELP_STRING([--enable-fty_metric_compute_selftest],
+        [Compile 'fty_metric_compute_selftest' in src [default=yes]]),
+    [enable_fty_metric_compute_selftest=$enableval],
+    [enable_fty_metric_compute_selftest=yes])
 
-AM_CONDITIONAL([ENABLE_AGENT_CM_SELFTEST], [test x$enable_agent_cm_selftest != xno])
-AM_COND_IF([ENABLE_AGENT_CM_SELFTEST], [AC_MSG_NOTICE([ENABLE_AGENT_CM_SELFTEST defined])])
+AM_CONDITIONAL([ENABLE_FTY_METRIC_COMPUTE_SELFTEST], [test x$enable_fty_metric_compute_selftest != xno])
+AM_COND_IF([ENABLE_FTY_METRIC_COMPUTE_SELFTEST], [AC_MSG_NOTICE([ENABLE_FTY_METRIC_COMPUTE_SELFTEST defined])])
 
 # Checks for library functions.
 AC_TYPE_SIGNAL
@@ -455,7 +480,22 @@ AC_ARG_WITH([systemd-units],
     [with_systemd_units=$withval],
     [with_systemd_units=no])
 
-AM_CONDITIONAL([WITH_SYSTEMD_UNITS], [test x$with_systemd_units != xno])
+PKG_PROG_PKG_CONFIG
+AC_ARG_WITH([systemdsystemunitdir],
+     [AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [Directory for systemd service files])],,
+     [with_systemdsystemunitdir=auto])
+AS_IF([test "x$with_systemdsystemunitdir" = "xyes" -o "x$with_systemdsystemunitdir" = "xauto"], [
+     def_systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)
+
+     AS_IF([test "x$def_systemdsystemunitdir" = "x"],
+   [AS_IF([test "x$with_systemdsystemunitdir" = "xyes"],
+    [AC_MSG_ERROR([systemd support requested but pkg-config unable to query systemd package])])
+    with_systemdsystemunitdir=no],
+   [with_systemdsystemunitdir="$def_systemdsystemunitdir"])])
+AS_IF([test "x$with_systemdsystemunitdir" != "xno"],
+      [AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])])
+
+AM_CONDITIONAL([WITH_SYSTEMD_UNITS], [test "x$with_systemdsystemunitdir" != "xno" -a x$with_systemd_units != xno])
 
 AM_COND_IF([WITH_SYSTEMD_UNITS],
     [AC_DEFINE(WITH_SYSTEMD_UNITS, 1, [systemd units are going to be installed])
@@ -481,8 +521,8 @@ AM_CONDITIONAL([ENABLE_DRAFTS], [test x$enable_drafts != xno])
 
 if test "x$enable_drafts" = "xyes"; then
     AC_MSG_NOTICE([Building stable and legacy API + draft API])
-    AC_DEFINE(AGENT_CM_BUILD_DRAFT_API, 1, [Provide draft classes and methods])
-    AC_SUBST(pkg_config_defines, "-DAGENT_CM_BUILD_DRAFT_API=1")
+    AC_DEFINE(FTY_METRIC_COMPUTE_BUILD_DRAFT_API, 1, [Provide draft classes and methods])
+    AC_SUBST(pkg_config_defines, "-DFTY_METRIC_COMPUTE_BUILD_DRAFT_API=1")
 else
     AC_MSG_NOTICE([Building stable and legacy API (no draft API)])
     AC_SUBST(pkg_config_defines, "")
@@ -491,19 +531,92 @@ fi
 # Specify output files
 AC_CONFIG_FILES([Makefile
                  doc/Makefile
-                 src/libagent_cm.pc
-                 src/bios-agent-cm.cfg
+                 src/libfty_metric_compute.pc
+                 src/fty-metric-compute.cfg
                  ])
 
 AM_COND_IF([WITH_SYSTEMD_UNITS],
     [AC_CONFIG_FILES([
-                 src/bios-agent-cm.service
-                 src/bios-agent-cm.conf
+                 src/fty-metric-compute.service
     ])],
     [])
 
 
 AC_OUTPUT
+
+# Print configure summary and list make options
+AC_DEFUN([AX_SUMMARIZE_ENV],
+[
+BUILD_USER=${USER}
+BUILD_ARCH=${host}
+BUILD_HOST=${ac_hostname}
+BUILD_DATE=$(date +'%F %H:%M')
+
+AC_DEFINE_UNQUOTED([BUILD_USER],     "${BUILD_USER}",     [The fine user who built the package])
+AC_DEFINE_UNQUOTED([BUILD_ARCH],     "${BUILD_ARCH}",     [Architecture of the build host])
+AC_DEFINE_UNQUOTED([BUILD_HOST],     "${BUILD_HOST}",     [Build host name])
+AC_DEFINE_UNQUOTED([BUILD_DATE],     "${BUILD_DATE}",     [Build date])
+
+AC_SUBST(BUILD_USER)
+AC_SUBST(BUILD_ARCH)
+AC_SUBST(BUILD_HOST)
+AC_SUBST(BUILD_DATE)
+AC_SUBST(BUILD_VERSION)
+])
+
+AC_DEFUN([AX_SUMMARIZE_CONFIG],
+[
+echo
+echo '##########################################################################'
+echo '#                                SUMMARY                                 #'
+echo '##########################################################################'
+echo
+echo Package version............... : $PACKAGE-$VERSION
+echo
+echo C compiler.................... : $CC
+echo C compiler flags.............. : $CFLAGS
+echo Configure date................ : $BUILD_DATE
+echo Build architecture............ : $BUILD_ARCH
+echo Build docs.................... : $fty_metric_compute_build_doc
+echo Build host.................... : $BUILD_HOST
+echo Build user.................... : $USER
+echo Draft API..................... : $enable_drafts
+echo Install dir................... : $prefix
+echo Install man pages............. : $fty_metric_compute_install_man
+
+echo
+echo Help:
+echo Use the Draft API \(default = yes\):
+echo --enable-drafts=\(yes\|no\)
+echo
+echo Build the docs and install the man pages \(default = yes\):
+echo --with-docs=\(yes\|no\)       *requires asciidoc and xmlto
+
+echo
+echo '##########################################################################'
+
+echo
+echo Configure complete! Now procced with:
+echo "    - 'make'               compile the project"
+echo "    - 'make check'         run the project's selftest"
+echo "    - 'make install'       install the project to $prefix"
+echo
+echo Further options are:
+echo "    - 'make callcheck'     run the project's selftest with valgrind to"
+echo "                           check for performance leaks"
+echo "    - 'make check-verbose' run the project's selftest in verbose mode"
+echo "    - 'make code'          generate code from models in src directory"
+echo "                           (requires zproject and zproto)"
+echo "    - 'make debug'         run the project's selftest under gdb"
+echo "    - 'make memcheck'      run the project's selftest with valgrind to"
+echo "                           check for memory leaks"
+echo "    - 'make coverage'      generate project's selftest coverage report"
+echo "                           expects --with-gcov option for configure"
+echo
+])
+
+AX_SUMMARIZE_ENV
+AX_SUMMARIZE_CONFIG
 ################################################################################
 #  THIS FILE IS 100% GENERATED BY ZPROJECT; DO NOT EDIT EXCEPT EXPERIMENTALLY  #
 #  Read the zproject/README.md for information about making permanent changes. #

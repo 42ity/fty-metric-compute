@@ -3,6 +3,9 @@
 #  Read the zproject/README.md for information about making permanent changes. #
 ################################################################################
 
+DISTCHECK_CONFIGURE_FLAGS = \
+  --with-systemdsystemunitdir=$$dc_install_base/$(systemdsystemunitdir)
+
 ACLOCAL_AMFLAGS = -I config
 
 AM_CFLAGS = \
@@ -13,10 +16,10 @@ AM_CPPFLAGS = \
     ${libzmq_CFLAGS} \
     ${czmq_CFLAGS} \
     ${malamute_CFLAGS} \
-    ${biosproto_CFLAGS} \
+    ${fty_proto_CFLAGS} \
     -I$(srcdir)/include
 
-project_libs = ${libzmq_LIBS} ${czmq_LIBS} ${malamute_LIBS} ${biosproto_LIBS}
+project_libs = ${libzmq_LIBS} ${czmq_LIBS} ${malamute_LIBS} ${fty_proto_LIBS}
 
 SUBDIRS = doc
 DIST_SUBDIRS = doc
@@ -28,10 +31,15 @@ noinst_LTLIBRARIES =
 TESTS =
 
 EXTRA_DIST = \
+    CMakeLists.txt \
+    Findlibzmq.cmake \
+    Findczmq.cmake \
+    Findmalamute.cmake \
+    Findfty_proto.cmake \
     src/cmstats.h \
     src/cmsteps.h \
     README.md \
-    src/agent_cm_classes.h
+    src/fty_metric_compute_classes.h
 
 include $(srcdir)/src/Makemodule.am
 include $(srcdir)/src/Makemodule-local.am # Optional project-local hook
