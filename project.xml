@@ -17,7 +17,7 @@
     <use project = "czmq" />
     <use project = "malamute" />
 
-    <use project = "fty-proto" libname = "libfty_proto"
+    <use project = "fty-proto" libname = "libfty_proto" prefix="ftyproto"
         min_major = "0" min_minor = "0" min_patch = "0"
         repository = "https://github.com/42ity/fty-proto"
         test = "fty_proto_test">

@@ -232,19 +232,19 @@ PKG_CHECK_MODULES([fty_proto], [libfty_proto >= 0.0.0],
             [])
 
         fty_proto_synthetic_cflags=""
-        fty_proto_synthetic_libs="-lfty-proto"
+        fty_proto_synthetic_libs="-lftyproto"
 
         if test "x$search_libfty_proto" = "xyes"; then
-            if test -r "${with_libfty_proto}/include/fty-proto.h"; then
+            if test -r "${with_libfty_proto}/include/ftyproto.h"; then
                 fty_proto_synthetic_cflags="-I${with_libfty_proto}/include"
-                fty_proto_synthetic_libs="-L${with_libfty_proto}/lib -lfty-proto"
+                fty_proto_synthetic_libs="-L${with_libfty_proto}/lib -lftyproto"
             else
-                AC_MSG_ERROR([${with_libfty_proto}/include/fty-proto.h not found. Please check libfty_proto prefix])
+                AC_MSG_ERROR([${with_libfty_proto}/include/ftyproto.h not found. Please check libfty_proto prefix])
             fi
         fi
 
 
-        AC_CHECK_LIB([fty-proto], [fty_proto_test],
+        AC_CHECK_LIB([ftyproto], [fty_proto_test],
             [
                 CFLAGS="${fty_proto_synthetic_cflags} ${CFLAGS}"
                 LDFLAGS="${fty_proto_synthetic_libs} ${LDFLAGS}"
@@ -253,9 +253,9 @@ PKG_CHECK_MODULES([fty_proto], [libfty_proto >= 0.0.0],
                 AC_SUBST([fty_proto_CFLAGS],[${fty_proto_synthetic_cflags}])
                 AC_SUBST([fty_proto_LIBS],[${fty_proto_synthetic_libs}])
                 was_fty_proto_check_lib_detected=yes
-                PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE -lfty-proto"
+                PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE -lftyproto"
             ],
-            [AC_MSG_ERROR([cannot link with -lfty-proto, install libfty_proto])])
+            [AC_MSG_ERROR([cannot link with -lftyproto, install libfty_proto])])
     ])
 
 if test "x$was_fty_proto_check_lib_detected" = "xno"; then
