@@ -30,7 +30,8 @@
 #include "platform.h"
 
 //  External API
-#include "../include/agent_cm.h"
+#include "../include/fty_metric_compute_library.h"
+#include "../include/fty_mc_server.h"
 
 //  Internal API
 #include "cmstats.h"
@@ -41,12 +42,12 @@
 
 //  *** Draft method, defined for internal use only ***
 //  Self test of this class.
-AGENT_CM_EXPORT void
+FTY_METRIC_COMPUTE_EXPORT void
     cmstats_test (bool verbose);
 
 //  *** Draft method, defined for internal use only ***
 //  Self test of this class.
-AGENT_CM_EXPORT void
+FTY_METRIC_COMPUTE_EXPORT void
     cmsteps_test (bool verbose);
 
 #endif // AGENT_CM_BUILD_DRAFT_API

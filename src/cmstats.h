@@ -30,15 +30,15 @@ typedef struct _cmstats_t cmstats_t;
 
 //  @interface
 //  Create a new cmstats
-AGENT_CM_EXPORT cmstats_t *
+FTY_METRIC_COMPUTE_EXPORT cmstats_t *
     cmstats_new (void);
 
 //  Destroy the cmstats
-AGENT_CM_EXPORT void
+FTY_METRIC_COMPUTE_EXPORT void
     cmstats_destroy (cmstats_t **self_p);
 
 //  Print the cmstats
-AGENT_CM_EXPORT void
+FTY_METRIC_COMPUTE_EXPORT void
     cmstats_print (cmstats_t *self);
 
 // Update statistics with "aggr_fun" and "step" for the incomming message "bmsg"
@@ -61,27 +61,27 @@ AGENT_CM_EXPORT void
 //         ret  - if we have just completed the computation for the interval and
 //                started new one. ( The old one is returned)
 //
-AGENT_CM_EXPORT bios_proto_t*
-    cmstats_put (cmstats_t *self, const char* aggr_fun, const char *sstep, uint32_t step, bios_proto_t *bmsg);
+FTY_METRIC_COMPUTE_EXPORT fty_proto_t*
+    cmstats_put (cmstats_t *self, const char* aggr_fun, const char *sstep, uint32_t step, fty_proto_t *bmsg);
 
 //  Remove all the entries related to the asset wiht asset_name from stats
-AGENT_CM_EXPORT void
+FTY_METRIC_COMPUTE_EXPORT void
     cmstats_delete_asset (cmstats_t *self, const char *asset_name);
 
 //  Polling handler - publish && reset the computed values if needed
-AGENT_CM_EXPORT void
+FTY_METRIC_COMPUTE_EXPORT void
     cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose);
 
 //  Save the cmstats to filename, return -1 if fail
-AGENT_CM_EXPORT int
+FTY_METRIC_COMPUTE_EXPORT int
     cmstats_save (cmstats_t *self, const char *filename);
 
 //  Load the cmstats from filename, return NULL if fail
-AGENT_CM_EXPORT cmstats_t *
+FTY_METRIC_COMPUTE_EXPORT cmstats_t *
     cmstats_load (const char *filename);
 
 //  Self test of this class
-AGENT_CM_EXPORT void
+FTY_METRIC_COMPUTE_EXPORT void
     cmstats_test (bool verbose);
 
 //  @end

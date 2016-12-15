@@ -1,69 +1,70 @@
 #
-#    agent-cm - Provides computation services on METRICS
+#    fty-metric-compute - 42ity computation services on METRICS
 #
-#    Copyright (C) 2016 Eaton
-#
-#    This program is free software; you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation; either version 2 of the License, or
-#    (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
+#    Copyright (C) 2016 Eaton                                               
+#                                                                           
+#    This program is free software; you can redistribute it and/or modify   
+#    it under the terms of the GNU General Public License as published by   
+#    the Free Software Foundation; either version 2 of the License, or      
+#    (at your option) any later version.                                    
+#                                                                           
+#    This program is distributed in the hope that it will be useful,        
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of         
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          
+#    GNU General Public License for more details.                           
+#                                                                           
 #    You should have received a copy of the GNU General Public License along
 #    with this program; if not, write to the Free Software Foundation, Inc.,
-#    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.            
 
-Source:         agent-cm
+Source:         fty-metric-compute
 Section:        net
 Priority:       optional
-Maintainer:     agent-cm Developers <bios@eaton.com>
+Maintainer:     fty-metric-compute Developers <eatonipcopensource@eaton.com>
 Standards-Version: 3.9.7
 Build-Depends: debhelper (>= 9),
     pkg-config,
     dh-autoreconf,
-    libzmq4-dev,
+    libzmq3-dev,
     libczmq-dev,
     libmlm-dev,
-    libbiosproto-dev,
-    dh-autoreconf,
+    libfty-proto-dev,
     systemd,
-    dh-systemd
+    dh-systemd,
+Build-Depends-Indep: asciidoc,
+                     xmlto
 
-Package: libagent-cm0
+Package: libfty-metric-compute0
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: agent-cm
- This package contains shared library for agent-cm: provides computation services on metrics
+Description: fty-metric-compute
+ This package contains shared library for fty-metric-compute: 42ity computation services on metrics
 
-Package: libagent-cm-dev
+Package: libfty-metric-compute-dev
 Architecture: any
 Section: libdevel
 Depends:
-    libzmq4-dev,
+    libzmq3-dev,
     libczmq-dev,
     libmlm-dev,
-    libbiosproto-dev,
-    libagent-cm0 (= ${binary:Version})
-Description: development files for agent-cm
- This package contains development files for agent-cm: provides computation services on metrics
+    libfty-proto-dev,
+    libfty-metric-compute0 (= ${binary:Version})
+Description: development files for fty-metric-compute
+ This package contains development files for fty-metric-compute: 42ity computation services on metrics
 
-Package: agent-cm
+Package: fty-metric-compute
 Architecture: any
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Description: provides computation services on metrics
- Main package for agent-cm: provides computation services on metrics
+Description: 42ity computation services on metrics
+ Main package for fty-metric-compute: 42ity computation services on metrics
 
-Package: agent-cm-dbg
+Package: fty-metric-compute-dbg
 Architecture: any
 Section: debug
 Priority: extra
 Depends:
-    agent-cm (= ${binary:Version}),
+    fty-metric-compute (= ${binary:Version}),
     ${misc:Depends}
-Description: debugging symbols for agent-cm
- This package contains the debugging symbols for agent-cm : provides computation services on metrics.
+Description: debugging symbols for fty-metric-compute
+ This package contains the debugging symbols for fty-metric-compute : 42ity computation services on metrics.
 

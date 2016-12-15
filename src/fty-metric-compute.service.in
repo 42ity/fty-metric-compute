@@ -1,8 +1,8 @@
 [Unit]
-Description=BIOS computation services (min, max, averages)
+Description=42ity computation services (min, max, averages)
 Requires=malamute.service
 After=malamute.service
-PartOf=bios.target
+PartOf=fty.target
 
 [Service]
 Type=simple
@@ -13,7 +13,7 @@ EnvironmentFile=-/etc/default/bios
 EnvironmentFile=-/etc/default/bios__%n.conf
 EnvironmentFile=-/etc/default/bios-db-rw
 Environment="prefix=@prefix@"
-ExecStart=@prefix@/bin/bios-agent-cm
+ExecStart=@prefix@/bin/fty-metric-compute
 Restart=always
 
 [Install]

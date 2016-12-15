@@ -26,7 +26,7 @@
 @end
 */
 
-#include "agent_cm_classes.h"
+#include "fty_metric_compute_classes.h"
 
 static const char* DEFAULT_ENDPOINT = "ipc://@/malamute";
 
@@ -81,9 +81,9 @@ int main (int argc, char *argv [])
     // TODO: Make this configurable, runtime and build-time default
     zstr_sendx (cm_server, "DIR", "/var/lib/bios/bios-agent-cm/", NULL);
     zstr_sendx (cm_server, "CONNECT", endpoint, NULL);
-    zstr_sendx (cm_server, "PRODUCER", BIOS_PROTO_STREAM_METRICS, NULL);
-    zstr_sendx (cm_server, "CONSUMER", BIOS_PROTO_STREAM_ASSETS, ".*", NULL);
-    zstr_sendx (cm_server, "CONSUMER", BIOS_PROTO_STREAM_METRICS, "(^realpower.default.*|.*temperature.*|.*humidity.*)", NULL);
+    zstr_sendx (cm_server, "PRODUCER", FTY_PROTO_STREAM_METRICS, NULL);
+    zstr_sendx (cm_server, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
+    zstr_sendx (cm_server, "CONSUMER", FTY_PROTO_STREAM_METRICS, "(^realpower.default.*|.*temperature.*|.*humidity.*)", NULL);
 
     // src/malamute.c, under MPL license
     while (true) {

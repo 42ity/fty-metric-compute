@@ -1,5 +1,5 @@
 /*  =========================================================================
-    agent-cm - Provides computation services on METRICS
+    bios_cm_server - Computation server implementation
 
     Copyright (C) 2016 Eaton
 
@@ -19,17 +19,26 @@
     =========================================================================
 */
 
-#ifndef AGENT_CM_H_H_INCLUDED
-#define AGENT_CM_H_H_INCLUDED
+#ifndef BIOS_CM_SERVER_H_INCLUDED
+#define BIOS_CM_SERVER_H_INCLUDED
 
-//  Include the project library file
-#include "agent_cm_library.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-//  Add your own public definitions here, if you need them
-#define AGENT_CM_TIME   "time"          // time item in aux
-#define AGENT_CM_COUNT  "x-cm-count"    // how many measurements are there
-#define AGENT_CM_SUM    "x-cm-sum"      // sum of the values
-#define AGENT_CM_TYPE   "x-cm-type"     // type of computation (min/max/arithmetic_mean)
-#define AGENT_CM_STEP   "x-cm-step"     // computation step (in seconds)
+//  @interface
+//  bios_cm_server actor
+FTY_METRIC_COMPUTE_EXPORT void
+    bios_cm_server (zsock_t *pipe, void *args);
+
+//  Self test of this class
+FTY_METRIC_COMPUTE_EXPORT void
+    bios_cm_server_test (bool verbose);
+
+//  @end
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
