@@ -77,7 +77,7 @@ if [ "$BUILD_TYPE" == "default" ] || [ "$BUILD_TYPE" == "default-Werror" ] ; the
     make -j4
     make install
     cd ..
-    git clone --quiet --depth 1 https://github.com/42ity/czmq.git czmq.git
+    git clone --quiet --depth 1 -b v3.0.2 https://github.com/zeromq/czmq.git czmq.git
     cd czmq.git
     git --no-pager log --oneline -n1
     if [ -e autogen.sh ]; then

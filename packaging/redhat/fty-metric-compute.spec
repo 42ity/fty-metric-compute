@@ -29,7 +29,7 @@
 %define DRAFTS no
 %endif
 Name:           fty-metric-compute
-Version:        0.7.0
+Version:        1.0.0
 Release:        1
 Summary:        42ity computation services on metrics
 License:        GPL-2.0+
@@ -58,18 +58,17 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 %description
 fty-metric-compute 42ity computation services on metrics.
 
-%package -n libfty_metric_compute0
+%package -n libfty_metric_compute1
 Group:          System/Libraries
-Summary:        42ity computation services on metrics
+Summary:        42ity computation services on metrics shared library
 
-%description -n libfty_metric_compute0
-fty-metric-compute 42ity computation services on metrics.
-This package contains shared library.
+%description -n libfty_metric_compute1
+This package contains shared library for fty-metric-compute: 42ity computation services on metrics
 
-%post -n libfty_metric_compute0 -p /sbin/ldconfig
-%postun -n libfty_metric_compute0 -p /sbin/ldconfig
+%post -n libfty_metric_compute1 -p /sbin/ldconfig
+%postun -n libfty_metric_compute1 -p /sbin/ldconfig
 
-%files -n libfty_metric_compute0
+%files -n libfty_metric_compute1
 %defattr(-,root,root)
 %doc COPYING
 %{_libdir}/libfty_metric_compute.so.*
@@ -77,15 +76,15 @@ This package contains shared library.
 %package devel
 Summary:        42ity computation services on metrics
 Group:          System/Libraries
-Requires:       libfty_metric_compute0 = %{version}
+Requires:       libfty_metric_compute1 = %{version}
 Requires:       zeromq-devel
 Requires:       czmq-devel
 Requires:       malamute-devel
 Requires:       fty-proto-devel
 
 %description devel
-fty-metric-compute 42ity computation services on metrics.
-This package contains development files.
+42ity computation services on metrics development tools
+This package contains development files for fty-metric-compute: 42ity computation services on metrics
 
 %files devel
 %defattr(-,root,root)

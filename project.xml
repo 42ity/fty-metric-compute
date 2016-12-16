@@ -12,9 +12,9 @@
     <target name = "travis" />
 
     <include filename = "license.xml" />
-    <version major = "0" minor = "7" patch = "0" />
+    <version major = "1" minor = "0" patch = "0" />
 
-    <use project = "czmq" />
+    <use project = "czmq" release="v3.0.2" />
     <use project = "malamute" />
 
     <use project = "fty-proto" libname = "libfty_proto" prefix="ftyproto"
