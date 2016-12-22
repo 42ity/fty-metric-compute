@@ -35,8 +35,8 @@
 #include <ftyproto.h>
 
 //  FTY_METRIC_COMPUTE version macros for compile-time API detection
-#define FTY_METRIC_COMPUTE_VERSION_MAJOR 0
-#define FTY_METRIC_COMPUTE_VERSION_MINOR 7
+#define FTY_METRIC_COMPUTE_VERSION_MAJOR 1
+#define FTY_METRIC_COMPUTE_VERSION_MINOR 0
 #define FTY_METRIC_COMPUTE_VERSION_PATCH 0
 
 #define FTY_METRIC_COMPUTE_MAKE_VERSION(major, minor, patch) \

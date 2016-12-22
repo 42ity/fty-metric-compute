@@ -22,8 +22,8 @@ if [ "$BUILD_TYPE" == "default" ]; then
     cd -
 elif [ "$BUILD_TYPE" == "bindings" ] && [ "$BINDING" == "jni" ]; then
     ( cd bindings/jni && TERM=dumb PKG_CONFIG_PATH=/tmp/lib/pkgconfig ./gradlew clean bintrayUpload )
-    cp bindings/jni/android/fty_metric_compute-android.jar fty_metric_compute-android-0.7.0.jar
-    export FTY_METRIC_COMPUTE_DEPLOYMENT=fty_metric_compute-android-0.7.0.jar
+    cp bindings/jni/android/fty_metric_compute-android.jar fty_metric_compute-android-1.0.0.jar
+    export FTY_METRIC_COMPUTE_DEPLOYMENT=fty_metric_compute-android-1.0.0.jar
 else
     export FTY_METRIC_COMPUTE_DEPLOYMENT=""
 fi

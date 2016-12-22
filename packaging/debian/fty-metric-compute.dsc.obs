@@ -1,7 +1,7 @@
 Format: 3.0 (quilt)
 Binary: fty-metric-compute
 Source: fty-metric-compute
-Version: 0.7.0
+Version: 1.0.0
 Maintainer: fty-metric-compute Developers <eatonipcopensource@eaton.com>
 Architecture: any
 Build-Depends: debhelper (>= 9),
