@@ -172,6 +172,9 @@ set_target_properties(fty_metric_compute
 set_target_properties(fty_metric_compute
     PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${SOURCE_DIR}/src"
 )
+set_target_properties (fty_metric_compute
+    PROPERTIES SOVERSION "0.0.0"
+)
 target_link_libraries(fty_metric_compute
     ${ZEROMQ_LIBRARIES} ${MORE_LIBRARIES}
 )
@@ -224,6 +227,9 @@ target_link_libraries(
 set_target_properties(
     fty-metric-compute
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${SOURCE_DIR}/src"
+)
+install(TARGETS fty-metric-compute
+    RUNTIME DESTINATION bin
 )
 add_executable(
     fty_metric_compute_selftest
