@@ -2,7 +2,7 @@
 Description=42ity computation services (min, max, averages)
 Requires=malamute.service
 After=malamute.service
-PartOf=fty.target
+PartOf=bios.target
 
 [Service]
 Type=simple
