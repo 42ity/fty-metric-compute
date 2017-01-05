@@ -58,17 +58,17 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 %description
 fty-metric-compute 42ity computation services on metrics.
 
-%package -n libfty_metric_compute1
+%package -n libfty_metric_compute0
 Group:          System/Libraries
 Summary:        42ity computation services on metrics shared library
 
-%description -n libfty_metric_compute1
+%description -n libfty_metric_compute0
 This package contains shared library for fty-metric-compute: 42ity computation services on metrics
 
-%post -n libfty_metric_compute1 -p /sbin/ldconfig
-%postun -n libfty_metric_compute1 -p /sbin/ldconfig
+%post -n libfty_metric_compute0 -p /sbin/ldconfig
+%postun -n libfty_metric_compute0 -p /sbin/ldconfig
 
-%files -n libfty_metric_compute1
+%files -n libfty_metric_compute0
 %defattr(-,root,root)
 %doc COPYING
 %{_libdir}/libfty_metric_compute.so.*
@@ -76,7 +76,7 @@ This package contains shared library for fty-metric-compute: 42ity computation s
 %package devel
 Summary:        42ity computation services on metrics
 Group:          System/Libraries
-Requires:       libfty_metric_compute1 = %{version}
+Requires:       libfty_metric_compute0 = %{version}
 Requires:       zeromq-devel
 Requires:       czmq-devel
 Requires:       malamute-devel

@@ -55,7 +55,7 @@ Description: 42ity computation services on metrics development tools
 
 Package: fty-metric-compute
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends},
 Description: 42ity computation services on metrics
  Main package for fty-metric-compute: 42ity computation services on metrics
 
