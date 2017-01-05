@@ -79,7 +79,7 @@ int main (int argc, char *argv [])
     zstr_sendx (cm_server, "TYPES", "min", "max", "arithmetic_mean", NULL);
     zstr_sendx (cm_server, "STEPS", "15m", "30m", "1h", "8h", "24h", "7d", "30d", NULL);
     // TODO: Make this configurable, runtime and build-time default
-    zstr_sendx (cm_server, "DIR", "/var/lib/bios/bios-agent-cm/", NULL);
+    zstr_sendx (cm_server, "DIR", "/var/lib/fty/fty-metric-compute/", NULL);
     zstr_sendx (cm_server, "CONNECT", endpoint, NULL);
     zstr_sendx (cm_server, "PRODUCER", FTY_PROTO_STREAM_METRICS, NULL);
     zstr_sendx (cm_server, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
