@@ -8,9 +8,7 @@ PartOf=bios.target
 Type=simple
 User=bios
 EnvironmentFile=-/usr/share/fty/etc/default/fty
-EnvironmentFile=-/usr/share/fty/etc/default/fty__%n.conf
 EnvironmentFile=-/etc/default/fty
-EnvironmentFile=-/etc/default/fty__%n.conf
 EnvironmentFile=-/etc/default/fty-db-rw
 Environment="prefix=@prefix@"
 ExecStart=@prefix@/bin/fty-metric-compute

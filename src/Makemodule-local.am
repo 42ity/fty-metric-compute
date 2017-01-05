@@ -1,5 +1,0 @@
-
-if WITH_SYSTEMD_UNITS
-tmpfilesdir = @prefix@/lib/tmpfiles.d
-tmpfiles_DATA = src/fty_metric_compute.conf.in
-endif WITH_SYSTEMD_UNITS
