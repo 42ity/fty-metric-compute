@@ -1,4 +1,4 @@
-#   bios-agent-cm configuration
+#   fty-metric-compute configuration
 
 server
     timeout = 10000     #   Client connection timeout, msec
