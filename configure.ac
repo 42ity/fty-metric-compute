@@ -82,6 +82,7 @@ PKG_CHECK_MODULES([libzmq], [libzmq >= 0.0.0],
         PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $libzmq_LIBS"
     ],
     [
+        AC_MSG_NOTICE([Package libzmq not found; falling back to defined compilability tests])
         AC_ARG_WITH([libzmq],
             [
                 AS_HELP_STRING([--with-libzmq],
@@ -129,6 +130,7 @@ PKG_CHECK_MODULES([czmq], [libczmq >= 0.0.0],
         PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $czmq_LIBS"
     ],
     [
+        AC_MSG_NOTICE([Package libczmq not found; falling back to defined compilability tests])
         AC_ARG_WITH([libczmq],
             [
                 AS_HELP_STRING([--with-libczmq],
@@ -176,6 +178,7 @@ PKG_CHECK_MODULES([malamute], [libmlm >= 0.0.0],
         PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $malamute_LIBS"
     ],
     [
+        AC_MSG_NOTICE([Package libmlm not found; falling back to defined compilability tests])
         AC_ARG_WITH([libmlm],
             [
                 AS_HELP_STRING([--with-libmlm],
@@ -223,6 +226,7 @@ PKG_CHECK_MODULES([fty_proto], [libfty_proto >= 0.0.0],
         PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $fty_proto_LIBS"
     ],
     [
+        AC_MSG_NOTICE([Package libfty_proto not found; falling back to defined compilability tests])
         AC_ARG_WITH([libfty_proto],
             [
                 AS_HELP_STRING([--with-libfty_proto],
@@ -521,7 +525,13 @@ if test "x$cross_compiling" = "xyes"; then
 else
     # enable draft API by default if we're in a git repository
     # else disable it by default; then allow --enable-drafts=yes/no override
-    AC_CHECK_FILE($srcdir/.git, [defaultval=yes], [defaultval=no])
+    AC_CHECK_FILE($srcdir/.git, [defaultval=yes],
+        [AC_MSG_CHECKING([running under a git repository workspace])
+         AS_IF([git rev-parse --show-toplevel 2>/dev/null],
+            [defaultval=yes],
+            [defaultval=no])
+         AC_MSG_RESULT($defaultval)
+        ])
 fi
 
 AC_ARG_ENABLE([drafts],
@@ -580,6 +590,7 @@ AM_COND_IF([WITH_SYSTEMD_UNITS],
                  src/fty-metric-compute.service
     ])],
     [])
+
 
 
 AC_OUTPUT

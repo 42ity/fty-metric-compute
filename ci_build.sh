@@ -167,12 +167,18 @@ if [ "$BUILD_TYPE" == "default" ] || [ "$BUILD_TYPE" == "default-Werror" ] || [ 
         CONFIG_OPTS+=("CPP=${CPP}")
     fi
 
-    # Clone and build dependencies
+    # Clone and build dependencies, if not yet installed to Travis env as DEBs
+    # or MacOS packages; other OSes are not currently supported by Travis cloud
     [ -z "$CI_TIME" ] || echo "`date`: Starting build of dependencies (if any)..."
-    if ! ((command -v dpkg-query >/dev/null 2>&1 && dpkg-query --list libzmq3-dev >/dev/null 2>&1) || \
-           (command -v brew >/dev/null 2>&1 && brew ls --versions libzmq >/dev/null 2>&1)); then
-        $CI_TIME git clone --quiet --depth 1 https://github.com/zeromq/libzmq.git libzmq
+
+    # Start of recipe for dependency: libzmq
+    if ! (command -v dpkg-query >/dev/null 2>&1 && dpkg-query --list libzmq3-dev >/dev/null 2>&1) || \
+           (command -v brew >/dev/null 2>&1 && brew ls --versions libzmq >/dev/null 2>&1) \
+    ; then
+        echo ""
         BASE_PWD=${PWD}
+        echo "`date`: INFO: Building prerequisite 'libzmq' from Git repository..." >&2
+        $CI_TIME git clone --quiet --depth 1 https://github.com/zeromq/libzmq.git libzmq
         cd libzmq
         CCACHE_BASEDIR=${PWD}
         export CCACHE_BASEDIR
@@ -196,10 +202,15 @@ if [ "$BUILD_TYPE" == "default" ] || [ "$BUILD_TYPE" == "default-Werror" ] || [ 
         $CI_TIME make install
         cd "${BASE_PWD}"
     fi
-    if ! ((command -v dpkg-query >/dev/null 2>&1 && dpkg-query --list libczmq-dev >/dev/null 2>&1) || \
-           (command -v brew >/dev/null 2>&1 && brew ls --versions czmq >/dev/null 2>&1)); then
-        $CI_TIME git clone --quiet --depth 1 -b v3.0.2 https://github.com/zeromq/czmq.git czmq
+
+    # Start of recipe for dependency: czmq
+    if ! (command -v dpkg-query >/dev/null 2>&1 && dpkg-query --list libczmq-dev >/dev/null 2>&1) || \
+           (command -v brew >/dev/null 2>&1 && brew ls --versions czmq >/dev/null 2>&1) \
+    ; then
+        echo ""
         BASE_PWD=${PWD}
+        echo "`date`: INFO: Building prerequisite 'czmq' from Git repository..." >&2
+        $CI_TIME git clone --quiet --depth 1 https://github.com/zeromq/czmq.git czmq
         cd czmq
         CCACHE_BASEDIR=${PWD}
         export CCACHE_BASEDIR
@@ -223,10 +234,15 @@ if [ "$BUILD_TYPE" == "default" ] || [ "$BUILD_TYPE" == "default-Werror" ] || [ 
         $CI_TIME make install
         cd "${BASE_PWD}"
     fi
-    if ! ((command -v dpkg-query >/dev/null 2>&1 && dpkg-query --list libmlm-dev >/dev/null 2>&1) || \
-           (command -v brew >/dev/null 2>&1 && brew ls --versions malamute >/dev/null 2>&1)); then
-        $CI_TIME git clone --quiet --depth 1 https://github.com/zeromq/malamute.git malamute
+
+    # Start of recipe for dependency: malamute
+    if ! (command -v dpkg-query >/dev/null 2>&1 && dpkg-query --list libmlm-dev >/dev/null 2>&1) || \
+           (command -v brew >/dev/null 2>&1 && brew ls --versions malamute >/dev/null 2>&1) \
+    ; then
+        echo ""
         BASE_PWD=${PWD}
+        echo "`date`: INFO: Building prerequisite 'malamute' from Git repository..." >&2
+        $CI_TIME git clone --quiet --depth 1 https://github.com/zeromq/malamute.git malamute
         cd malamute
         CCACHE_BASEDIR=${PWD}
         export CCACHE_BASEDIR
@@ -250,10 +266,15 @@ if [ "$BUILD_TYPE" == "default" ] || [ "$BUILD_TYPE" == "default-Werror" ] || [ 
         $CI_TIME make install
         cd "${BASE_PWD}"
     fi
-    if ! ((command -v dpkg-query >/dev/null 2>&1 && dpkg-query --list libfty_proto-dev >/dev/null 2>&1) || \
-           (command -v brew >/dev/null 2>&1 && brew ls --versions fty-proto >/dev/null 2>&1)); then
-        $CI_TIME git clone --quiet --depth 1 https://github.com/42ity/fty-proto fty-proto
+
+    # Start of recipe for dependency: fty-proto
+    if ! (command -v dpkg-query >/dev/null 2>&1 && dpkg-query --list libfty_proto-dev >/dev/null 2>&1) || \
+           (command -v brew >/dev/null 2>&1 && brew ls --versions fty-proto >/dev/null 2>&1) \
+    ; then
+        echo ""
         BASE_PWD=${PWD}
+        echo "`date`: INFO: Building prerequisite 'fty-proto' from Git repository..." >&2
+        $CI_TIME git clone --quiet --depth 1 https://github.com/42ity/fty-proto fty-proto
         cd fty-proto
         CCACHE_BASEDIR=${PWD}
         export CCACHE_BASEDIR
@@ -279,7 +300,8 @@ if [ "$BUILD_TYPE" == "default" ] || [ "$BUILD_TYPE" == "default-Werror" ] || [ 
     fi
 
     # Build and check this project; note that zprojects always have an autogen.sh
-    [ -z "$CI_TIME" ] || echo "`date`: Starting build of currently tested project with DRAFT APIs..."
+    echo ""
+    echo "`date`: INFO: Starting build of currently tested project with DRAFT APIs..."
     CCACHE_BASEDIR=${PWD}
     export CCACHE_BASEDIR
     # Only use --enable-Werror on projects that are expected to have it
@@ -298,17 +320,11 @@ if [ "$BUILD_TYPE" == "default" ] || [ "$BUILD_TYPE" == "default-Werror" ] || [ 
     git status -s || true
     echo "==="
 
-    (
-        export DISTCHECK_CONFIGURE_FLAGS="--enable-drafts=yes ${CONFIG_OPTS[@]}"
-        $CI_TIME make VERBOSE=1 DISTCHECK_CONFIGURE_FLAGS="$DISTCHECK_CONFIGURE_FLAGS" distcheck
-
-        echo "=== Are GitIgnores good after 'make distcheck' with drafts? (should have no output below)"
-        git status -s || true
-        echo "==="
-    )
+    make check
 
     # Build and check this project without DRAFT APIs
-    [ -z "$CI_TIME" ] || echo "`date`: Starting build of currently tested project without DRAFT APIs..."
+    echo ""
+    echo "`date`: INFO: Starting build of currently tested project without DRAFT APIs..."
     make distclean
 
     git clean -f
@@ -317,10 +333,7 @@ if [ "$BUILD_TYPE" == "default" ] || [ "$BUILD_TYPE" == "default-Werror" ] || [ 
         $CI_TIME ./autogen.sh 2> /dev/null
         $CI_TIME ./configure --enable-drafts=no "${CONFIG_OPTS[@]}" --with-docs=yes
         $CI_TIME make VERBOSE=1 all || exit $?
-        (
-            export DISTCHECK_CONFIGURE_FLAGS="--enable-drafts=no ${CONFIG_OPTS[@]} --with-docs=yes" && \
-            $CI_TIME make VERBOSE=1 DISTCHECK_CONFIGURE_FLAGS="$DISTCHECK_CONFIGURE_FLAGS" distcheck || exit $?
-        )
+        make check
     ) || exit 1
     [ -z "$CI_TIME" ] || echo "`date`: Builds completed without fatal errors!"
 

@@ -9,12 +9,12 @@
 
     <target name = "debian" />
     <target name = "redhat" />
-    <target name = "travis" />
+    <target name = "travis" travis_distcheck="0"/>
 
     <include filename = "license.xml" />
     <version major = "1" minor = "0" patch = "0" />
 
-    <use project = "czmq" release="v3.0.2" />
+    <use project = "czmq" />
     <use project = "malamute" />
 
     <use project = "fty-proto" libname = "libfty_proto" prefix="ftyproto"

@@ -92,6 +92,7 @@ This package contains development files for fty-metric-compute: 42ity computatio
 %{_libdir}/libfty_metric_compute.so
 %{_libdir}/pkgconfig/libfty_metric_compute.pc
 %{_mandir}/man3/*
+%{_mandir}/man7/*
 
 %prep
 %setup -q
@@ -115,15 +116,15 @@ find %{buildroot} -name '*.la' | xargs rm -f
 %{_bindir}/fty-metric-compute
 %{_mandir}/man1/fty-metric-compute*
 %config(noreplace) %{_sysconfdir}/fty-metric-compute/fty-metric-compute.cfg
-/usr/lib/systemd/system/fty-metric-compute.service
+/usr/lib/systemd/system/fty-metric-compute{,@*}.{service,*}
 %dir %{_sysconfdir}/fty-metric-compute
 %if 0%{?suse_version} > 1315
 %post
-%systemd_post fty-metric-compute.service
+%systemd_post fty-metric-compute{,@*}.{service,*}
 %preun
-%systemd_preun fty-metric-compute.service
+%systemd_preun fty-metric-compute{,@*}.{service,*}
 %postun
-%systemd_postun_with_restart fty-metric-compute.service
+%systemd_postun_with_restart fty-metric-compute{,@*}.{service,*}
 %endif
 
 %changelog

@@ -1,4 +1,5 @@
 save.xml
+builds/cmake/
 # Object files
 *.o
 *.so
