@@ -36,7 +36,11 @@ typedef struct {
 
 static test_item_t
 all_tests [] = {
+// Tests for stable public classes:
     { "fty_mc_server", fty_mc_server_test },
+#ifdef FTY_METRIC_COMPUTE_BUILD_DRAFT_API
+    { "private_classes", fty_metric_compute_private_selftest },
+#endif // FTY_METRIC_COMPUTE_BUILD_DRAFT_API
     {0, 0}          //  Sentinel
 };
 
@@ -101,9 +105,8 @@ main (int argc, char **argv)
         if (streq (argv [argn], "--list")
         ||  streq (argv [argn], "-l")) {
             puts ("Available tests:");
-            puts ("    cmstats");
-            puts ("    cmsteps");
-            puts ("    fty_mc_server");
+            puts ("    fty_mc_server\t\t- stable");
+            puts ("    private_classes\t- draft");
             return 0;
         }
         else

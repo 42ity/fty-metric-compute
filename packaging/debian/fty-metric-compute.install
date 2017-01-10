@@ -1,5 +1,5 @@
 usr/bin/fty-metric-compute
 usr/share/man/man1/fty-metric-compute.1
 etc/fty-metric-compute/fty-metric-compute.cfg
-lib/systemd/system/fty-metric-compute.service
+lib/systemd/system/fty-metric-compute{,@*}.{service,*}
 
