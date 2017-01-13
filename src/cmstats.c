@@ -223,7 +223,7 @@ cmstats_put (
             sstep);
         fty_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
         fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
-        fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, fty_proto_value (stat_msg)); // insert value as string into string
+        fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (stat_msg)); // insert value as string into string
         fty_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", addr_fun);
         fty_proto_aux_insert (stat_msg, AGENT_CM_STEP, "%"PRIu32, step);
         fty_proto_set_ttl (stat_msg, 2 * step);
@@ -247,9 +247,9 @@ cmstats_put (
         // to compute the statistics for the next interval
         fty_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
         fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
-        fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, fty_proto_value (stat_msg));
+        fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (stat_msg));
 
-        fty_proto_set_value (stat_msg, fty_proto_value (bmsg));
+        fty_proto_set_value (stat_msg, "%s", fty_proto_value (bmsg));
         return ret;
     }
 
@@ -435,10 +435,10 @@ cmstats_load (const char *filename)
         // 1. create bmsg
         const char *metric_topic = zconfig_get (key_config, "metric_topic", "");
         fty_proto_t *bmsg = fty_proto_new (FTY_PROTO_METRIC);
-        fty_proto_set_type (bmsg, zconfig_get (key_config, "type", ""));
-        fty_proto_set_element_src (bmsg, zconfig_get (key_config, "element_src", ""));
-        fty_proto_set_value (bmsg, zconfig_get (key_config, "value", ""));
-        fty_proto_set_unit (bmsg, zconfig_get (key_config, "unit", ""));
+        fty_proto_set_type (bmsg, "%s", zconfig_get (key_config, "type", ""));
+        fty_proto_set_element_src (bmsg, "%s", zconfig_get (key_config, "element_src", ""));
+        fty_proto_set_value (bmsg, "%s", zconfig_get (key_config, "value", ""));
+        fty_proto_set_unit (bmsg, "%s", zconfig_get (key_config, "unit", ""));
         fty_proto_set_ttl (bmsg, atoi (zconfig_get (key_config, "ttl", "0")));
 
         double value = atof (fty_proto_value (bmsg));
@@ -460,7 +460,7 @@ cmstats_load (const char *filename)
             if (strncmp (bmsg_key, "aux.", 4) != 0)
                 continue;
 
-            fty_proto_aux_insert (bmsg, (bmsg_key+4), zconfig_value (bmsg_config));
+            fty_proto_aux_insert (bmsg, (bmsg_key+4), "%s", zconfig_value (bmsg_config));
         }
 
         value = atof (fty_proto_aux_string (bmsg, AGENT_CM_SUM, "0"));
