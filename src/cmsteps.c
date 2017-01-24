@@ -1,7 +1,7 @@
 /*  =========================================================================
     cmsteps - Helper class for list of steps
 
-    Copyright (C) 2016 Eaton
+    Copyright (C) 2016 - 2017 Eaton
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by

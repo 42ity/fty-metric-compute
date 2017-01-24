@@ -12,7 +12,7 @@ Name: libfty_metric_compute
 Description: 42ity computation services on METRICS
 Version: @VERSION@
 
-Requires:libzmq libczmq libmlm libfty_proto
+Requires:@pkgconfig_name_libzmq@ @pkgconfig_name_libczmq@ @pkgconfig_name_libmlm@ @pkgconfig_name_libfty_proto@
 
 Libs: -L${libdir} -lfty_metric_compute
 Cflags: -I${includedir} @pkg_config_defines@

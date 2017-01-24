@@ -189,9 +189,6 @@ add_library(fty_metric_compute ${fty_metric_compute_sources})
 set_target_properties(fty_metric_compute
     PROPERTIES DEFINE_SYMBOL "FTY_METRIC_COMPUTE_EXPORTS"
 )
-set_target_properties(fty_metric_compute
-    PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${SOURCE_DIR}/src"
-)
 set_target_properties (fty_metric_compute
     PROPERTIES SOVERSION "0.0.0"
 )
@@ -244,10 +241,6 @@ target_link_libraries(
     ${FTY-PROTO_LIBRARIES}
     ${OPTIONAL_LIBRARIES}
 )
-set_target_properties(
-    fty-metric-compute
-    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${SOURCE_DIR}/src"
-)
 install(TARGETS fty-metric-compute
     RUNTIME DESTINATION bin
 )
@@ -263,10 +256,6 @@ target_link_libraries(
     ${MALAMUTE_LIBRARIES}
     ${FTY-PROTO_LIBRARIES}
     ${OPTIONAL_LIBRARIES}
-)
-set_target_properties(
-    fty_metric_compute_selftest
-    PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${SOURCE_DIR}/src"
 )
 
 ########################################################################
