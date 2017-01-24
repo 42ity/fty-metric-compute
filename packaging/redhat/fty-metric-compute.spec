@@ -1,7 +1,7 @@
 #
 #    fty-metric-compute - 42ity computation services on METRICS
 #
-#    Copyright (C) 2016 Eaton                                               
+#    Copyright (C) 2016 - 2017 Eaton                                        
 #                                                                           
 #    This program is free software; you can redistribute it and/or modify   
 #    it under the terms of the GNU General Public License as published by   
@@ -116,15 +116,15 @@ find %{buildroot} -name '*.la' | xargs rm -f
 %{_bindir}/fty-metric-compute
 %{_mandir}/man1/fty-metric-compute*
 %config(noreplace) %{_sysconfdir}/fty-metric-compute/fty-metric-compute.cfg
-/usr/lib/systemd/system/fty-metric-compute{,@*}.{service,*}
+/usr/lib/systemd/system/fty-metric-compute.service
 %dir %{_sysconfdir}/fty-metric-compute
 %if 0%{?suse_version} > 1315
 %post
-%systemd_post fty-metric-compute{,@*}.{service,*}
+%systemd_post fty-metric-compute.service
 %preun
-%systemd_preun fty-metric-compute{,@*}.{service,*}
+%systemd_preun fty-metric-compute.service
 %postun
-%systemd_postun_with_restart fty-metric-compute{,@*}.{service,*}
+%systemd_postun_with_restart fty-metric-compute.service
 %endif
 
 %changelog
