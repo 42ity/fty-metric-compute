@@ -26,7 +26,10 @@
 extern "C" {
 #endif
 
+#ifndef CMSTEPS_T_DEFINED
 typedef struct _cmsteps_t cmsteps_t;
+#define CMSTEPS_T_DEFINED
+#endif
 
 //  @interface
 //  Create a new cmsteps
