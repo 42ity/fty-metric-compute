@@ -26,7 +26,10 @@
 extern "C" {
 #endif
 
+#ifndef CMSTATS_T_DEFINED
 typedef struct _cmstats_t cmstats_t;
+#define CMSTATS_T_DEFINED
+#endif
 
 //  @interface
 //  Create a new cmstats
