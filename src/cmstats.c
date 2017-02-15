@@ -221,7 +221,7 @@ cmstats_put (
             fty_proto_type (bmsg),
             addr_fun,
             sstep);
-        fty_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
+        fty_proto_set_time (stat_msg, metric_time_new_s);
         fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (stat_msg)); // insert value as string into string
         fty_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", addr_fun);
@@ -236,7 +236,7 @@ cmstats_put (
 
     // there is already some value
     // so check if it's not already older than we need
-    uint64_t metric_time_s = fty_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
+    uint64_t metric_time_s = fty_proto_time (stat_msg);
 
     // it is, return the stat value and "restart" the computation
     if ( ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) ) {
@@ -245,7 +245,7 @@ cmstats_put (
 
         // update statistics: restart it, as from now on we are going
         // to compute the statistics for the next interval
-        fty_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
+        fty_proto_set_time (stat_msg, metric_time_new_s);
         fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (stat_msg));
 
@@ -325,7 +325,7 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
         const char* key = (const char*) zhashx_cursor (self->stats);
 
         // What is an assigned time for the metric ( in our case it is a left margin in the interval)
-        uint64_t metric_time_s = fty_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
+        uint64_t metric_time_s = fty_proto_time (stat_msg);
         uint64_t step = fty_proto_aux_number (stat_msg, AGENT_CM_STEP, 0);
         // What SHOULD be an assigned time for the NEW stat metric (in our case it is a left margin in the NEW interval)
         uint64_t metric_time_new_s = (now_ms - (now_ms % (step * 1000))) / 1000;
@@ -344,7 +344,7 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
             // Yes, it should!
             fty_proto_t *ret = fty_proto_dup (stat_msg);
 
-            fty_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
+            fty_proto_set_time (stat_msg, metric_time_new_s);
             fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "0"); // As we do not receive any message, start from ZERO
             fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");  // As we do not receive any message, start from ZERO
 
