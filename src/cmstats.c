@@ -104,7 +104,7 @@ s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
             fty_proto_value ((fty_proto_t*) bmsg),
             fty_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"),
             fty_proto_type ((fty_proto_t*) bmsg),
-            fty_proto_element_src ((fty_proto_t*) bmsg)
+            fty_proto_name ((fty_proto_t*) bmsg)
         );
         return;
     }
@@ -121,7 +121,7 @@ s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
             sum,
             count,
             fty_proto_type ((fty_proto_t*) bmsg),
-            fty_proto_element_src ((fty_proto_t*) bmsg)
+            fty_proto_name ((fty_proto_t*) bmsg)
             );
         return;
     }
@@ -209,7 +209,7 @@ cmstats_put (
             fty_proto_type (bmsg),
             addr_fun,
             sstep,
-            fty_proto_element_src (bmsg));
+            fty_proto_name (bmsg));
     assert (r != -1);   // make gcc @ rhel happy
 
     fty_proto_t *stat_msg = (fty_proto_t*) zhashx_lookup (self->stats, key);
@@ -221,7 +221,7 @@ cmstats_put (
             fty_proto_type (bmsg),
             addr_fun,
             sstep);
-        fty_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
+        fty_proto_set_time (stat_msg, metric_time_new_s);
         fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (stat_msg)); // insert value as string into string
         fty_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", addr_fun);
@@ -236,7 +236,7 @@ cmstats_put (
 
     // there is already some value
     // so check if it's not already older than we need
-    uint64_t metric_time_s = fty_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
+    uint64_t metric_time_s = fty_proto_time (stat_msg);
 
     // it is, return the stat value and "restart" the computation
     if ( ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) ) {
@@ -245,7 +245,7 @@ cmstats_put (
 
         // update statistics: restart it, as from now on we are going
         // to compute the statistics for the next interval
-        fty_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
+        fty_proto_set_time (stat_msg, metric_time_new_s);
         fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (stat_msg));
 
@@ -292,7 +292,7 @@ cmstats_delete_asset (cmstats_t *self, const char *asset_name)
                        stat_msg = (fty_proto_t*) zhashx_next (self->stats))
     {
         const char* key = (const char*) zhashx_cursor (self->stats);
-        if (streq (fty_proto_element_src (stat_msg), asset_name))
+        if (streq (fty_proto_name (stat_msg), asset_name))
             zlist_append (keys, (void*) key);
     }
 
@@ -325,7 +325,7 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
         const char* key = (const char*) zhashx_cursor (self->stats);
 
         // What is an assigned time for the metric ( in our case it is a left margin in the interval)
-        uint64_t metric_time_s = fty_proto_aux_number (stat_msg, AGENT_CM_TIME, 0);
+        uint64_t metric_time_s = fty_proto_time (stat_msg);
         uint64_t step = fty_proto_aux_number (stat_msg, AGENT_CM_STEP, 0);
         // What SHOULD be an assigned time for the NEW stat metric (in our case it is a left margin in the NEW interval)
         uint64_t metric_time_new_s = (now_ms - (now_ms % (step * 1000))) / 1000;
@@ -344,7 +344,7 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
             // Yes, it should!
             fty_proto_t *ret = fty_proto_dup (stat_msg);
 
-            fty_proto_aux_insert (stat_msg, AGENT_CM_TIME, "%"PRIu64, metric_time_new_s);
+            fty_proto_set_time (stat_msg, metric_time_new_s);
             fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "0"); // As we do not receive any message, start from ZERO
             fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");  // As we do not receive any message, start from ZERO
 
@@ -388,7 +388,7 @@ cmstats_save (cmstats_t *self, const char *filename)
         zconfig_t *item = zconfig_new (asset_key, root);
         zconfig_put (item, "metric_topic", metric_topic);
         zconfig_put (item, "type", fty_proto_type (bmsg));
-        zconfig_put (item, "element_src", fty_proto_element_src (bmsg));
+        zconfig_put (item, "element_src", fty_proto_name (bmsg));
         zconfig_put (item, "value", fty_proto_value (bmsg));
         zconfig_put (item, "unit", fty_proto_unit (bmsg));
         zconfig_putf (item, "ttl", "%"PRIu32, fty_proto_ttl (bmsg));
@@ -436,7 +436,7 @@ cmstats_load (const char *filename)
         const char *metric_topic = zconfig_get (key_config, "metric_topic", "");
         fty_proto_t *bmsg = fty_proto_new (FTY_PROTO_METRIC);
         fty_proto_set_type (bmsg, "%s", zconfig_get (key_config, "type", ""));
-        fty_proto_set_element_src (bmsg, "%s", zconfig_get (key_config, "element_src", ""));
+        fty_proto_set_name (bmsg, "%s", zconfig_get (key_config, "element_src", ""));
         fty_proto_set_value (bmsg, "%s", zconfig_get (key_config, "value", ""));
         fty_proto_set_unit (bmsg, "%s", zconfig_get (key_config, "unit", ""));
         fty_proto_set_ttl (bmsg, atoi (zconfig_get (key_config, "ttl", "0")));
@@ -446,7 +446,7 @@ cmstats_load (const char *filename)
             zsys_warning ("cmstats_load:\tisnan (%s) for %s@%s, ignoring",
                     fty_proto_value (bmsg),
                     fty_proto_type (bmsg),
-                    fty_proto_element_src (bmsg)
+                    fty_proto_name (bmsg)
                     );
             fty_proto_destroy (&bmsg);
             continue;
@@ -525,11 +525,12 @@ cmstats_test (bool verbose)
     //  1.1 first metric in
     zmsg_t *msg = fty_proto_encode_metric (
             NULL,
+            time (NULL),
+            10,
             "TYPE",
             "ELEMENT_SRC",
             "100.989999",
-            "UNIT",
-            10);
+            "UNIT");
     fty_proto_t *bmsg = fty_proto_decode (&msg);
     fty_proto_t *stats = NULL;
 
@@ -544,11 +545,12 @@ cmstats_test (bool verbose)
     //  1.2 second metric (inside interval) in
     msg = fty_proto_encode_metric (
             NULL,
+            time (NULL),
+            10,
             "TYPE",
             "ELEMENT_SRC",
             "42.109999999999",
-            "UNIT",
-            10);
+            "UNIT");
     bmsg = fty_proto_decode (&msg);
 
     zclock_sleep (500);
@@ -565,11 +567,12 @@ cmstats_test (bool verbose)
     //  1.3 third metric (outside interval) in
     msg = fty_proto_encode_metric (
             NULL,
+            time (NULL),
+            10,
             "TYPE",
             "ELEMENT_SRC",
             "42.889999999999",
-            "UNIT",
-            10);
+            "UNIT");
     bmsg = fty_proto_decode (&msg);
 
     //  1.4 check the minimal value

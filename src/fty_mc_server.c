@@ -312,12 +312,12 @@ fty_mc_server (zsock_t *pipe, void *args)
         // All statistics are computed for "left side of the interval"
         if ( fty_proto_id (bmsg) == FTY_PROTO_METRIC ) {
         
-            // get rid of messages with empty or null element_src
-            if (fty_proto_element_src (bmsg) == NULL || streq (fty_proto_element_src (bmsg), ""))
+            // get rid of messages with empty or null name
+            if (fty_proto_name (bmsg) == NULL || streq (fty_proto_name (bmsg), ""))
             {
-                zsys_warning ("%s: invalid \'element_src\' = (%s), \tsubject=%s, sender=%s",
+                zsys_warning ("%s: invalid \'name\' = (%s), \tsubject=%s, sender=%s",
                         self->name,            
-                        fty_proto_element_src (bmsg) ?  fty_proto_element_src (bmsg) : "null",       
+                        fty_proto_name (bmsg) ?  fty_proto_name (bmsg) : "null",       
                         mlm_client_subject (self->client),
                         mlm_client_sender (self->client));
                 fty_proto_destroy(&bmsg);
@@ -350,7 +350,7 @@ fty_mc_server (zsock_t *pipe, void *args)
                     if (stat_msg) {
                         char *subject = zsys_sprintf ("%s@%s",
                                 fty_proto_type (stat_msg),
-                                fty_proto_element_src (stat_msg));
+                                fty_proto_name (stat_msg));
                         assert (subject);
 
                         zmsg_t *msg = fty_proto_encode (&stat_msg);
@@ -456,30 +456,33 @@ fty_mc_server_test (bool verbose)
 
     zmsg_t *msg = fty_proto_encode_metric (
             NULL,
+            time (NULL),
+            10,
             "realpower.default",
             "DEV1",
             "100",
-            "UNIT",
-            10);
+            "UNIT");
     mlm_client_send (producer, "realpower.default@DEV1", &msg);
 
     // empty element_src
     msg = fty_proto_encode_metric (
             NULL,
+            time (NULL),
+            10,
             "realpower.default",
             "",
             "20",
-            "UNIT",
-            10);
+            "UNIT");
     mlm_client_send (producer, "realpower.default@", &msg);
 
     msg = fty_proto_encode_metric (
             NULL,
+            time (NULL),
+            10,
             "realpower.default",
             "DEV1",
             "50",
-            "UNIT",
-            10);
+            "UNIT");
     mlm_client_send (producer, "realpower.default@DEV1", &msg);
     
     // T+1100ms
@@ -522,19 +525,21 @@ fty_mc_server_test (bool verbose)
     // send some 1s min/max to differentiate the 1s and 5s min/max later on
     msg = fty_proto_encode_metric (
             NULL,
+            time (NULL),
+            10,
             "realpower.default",
             "DEV1",
             "42",
-            "UNIT",
-            10);
+            "UNIT");
     mlm_client_send (producer, "realpower.default@DEV1", &msg);
     msg = fty_proto_encode_metric (
             NULL,
+            time (NULL),
+            10,
             "realpower.default",
             "DEV1",
             "242",
-            "UNIT",
-            10);
+            "UNIT");
     mlm_client_send (producer, "realpower.default@DEV1", &msg);
 
     // goto T+4600
