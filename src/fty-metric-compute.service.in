@@ -7,12 +7,18 @@ PartOf=bios.target
 [Service]
 Type=simple
 User=bios
-EnvironmentFile=-/usr/share/fty/etc/default/fty
-EnvironmentFile=-/etc/default/fty
-EnvironmentFile=-/etc/default/fty-db-rw
-Environment="prefix=@prefix@"
-ExecStart=@prefix@/bin/fty-metric-compute
 Restart=always
+EnvironmentFile=-@prefix@/share/bios/etc/default/bios
+EnvironmentFile=-@prefix@/share/bios/etc/default/bios__%n.conf
+EnvironmentFile=-@prefix@/share/fty/etc/default/fty
+EnvironmentFile=-@prefix@/share/fty/etc/default/fty__%n.conf
+EnvironmentFile=-@sysconfdir@/default/bios
+EnvironmentFile=-@sysconfdir@/default/bios__%n.conf
+EnvironmentFile=-@sysconfdir@/default/fty
+EnvironmentFile=-@sysconfdir@/default/fty__%n.conf
+Environment="prefix=@prefix@"
+EnvironmentFile=-@sysconfdir@/default/bios-db-rw
+ExecStart=@prefix@/bin/fty-metric-compute
 
 [Install]
 WantedBy=bios.target
