@@ -3,8 +3,9 @@
     description = "42ity computation services on METRICS"
     script = "zproject.gsl"
     email = "EatonIPCOpenSource@eaton.com"
-    url = "https://github.com/42ity/fty-metric-compute"
+    url = "https://42ity.org"
     license = "GPL-2.0+"
+    repository = "https://github.com/42ity/fty-metric-compute"
     >
 
     <target name = "debian" />
@@ -14,12 +15,12 @@
     <include filename = "license.xml" />
     <version major = "1" minor = "0" patch = "0" />
 
-    <use project = "czmq" min_major = "3" release = "v3.0.2"
-        repository="https://github.com/42ity/czmq.git"/>
-    <use project = "malamute" />
-
-    <use project = "fty-proto" libname = "libfty_proto" prefix="ftyproto"
-        min_major = "0" min_minor = "0" min_patch = "0"
+    <use project = "czmq"
+        repository="https://github.com/42ity/czmq.git" release = "v3.0.2"
+        min_major = "3" min_minor = "0" min_patch = "2" />
+    <use project = "malamute" min_major = "1" test = "mlm_server_test" />
+    <use project = "fty-proto" libname = "libfty_proto" header="ftyproto.h" prefix="fty_proto"
+        min_major = "1" min_minor = "0" min_patch = "0"
         repository = "https://github.com/42ity/fty-proto"
         test = "fty_proto_test">
         <use project = "malamute"/>
