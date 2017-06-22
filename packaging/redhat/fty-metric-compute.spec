@@ -33,7 +33,7 @@ Version:        1.0.0
 Release:        1
 Summary:        42ity computation services on metrics
 License:        GPL-2.0+
-URL:            https://github.com/42ity/fty-metric-compute
+URL:            https://42ity.org
 Source0:        %{name}-%{version}.tar.gz
 Group:          System/Libraries
 # Note: ghostscript is required by graphviz which is required by
