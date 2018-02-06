@@ -292,6 +292,11 @@ fty_mc_server (zsock_t *pipe, void *args)
             zsys_error ("%s:\tmlm_client_recv() == NULL", self->name);
             continue;
         }
+
+        // ignore linuxmetrics
+        if (streq (mlm_client_sender (self->client), "fty_info_linuxmetrics"))
+            continue;
+
         fty_proto_t *bmsg = fty_proto_decode (&msg);
 
         // If we received an asset message
@@ -311,24 +316,24 @@ fty_mc_server (zsock_t *pipe, void *args)
         // update statistics for all steps and types
         // All statistics are computed for "left side of the interval"
         if ( fty_proto_id (bmsg) == FTY_PROTO_METRIC ) {
-        
+
             // get rid of messages with empty or null name
             if (fty_proto_name (bmsg) == NULL || streq (fty_proto_name (bmsg), ""))
             {
                 zsys_warning ("%s: invalid \'name\' = (%s), \tsubject=%s, sender=%s",
-                        self->name,            
-                        fty_proto_name (bmsg) ?  fty_proto_name (bmsg) : "null",       
+                        self->name,
+                        fty_proto_name (bmsg) ?  fty_proto_name (bmsg) : "null",
                         mlm_client_subject (self->client),
                         mlm_client_sender (self->client));
                 fty_proto_destroy(&bmsg);
                 continue;
             }
-                    
+
             // sometimes we do have nan in values, report if we get something like that on METRICS
             double value = atof (fty_proto_value (bmsg));
             if (isnan (value)) {
                 zsys_warning ("%s:\tisnan ('%s'), subject='%s', sender='%s'",
-                        self->name,      
+                        self->name,
                         value,
                         mlm_client_subject (self->client),
                         mlm_client_sender (self->client)
@@ -484,7 +489,7 @@ fty_mc_server_test (bool verbose)
             "50",
             "UNIT");
     mlm_client_send (producer, "realpower.default@DEV1", &msg);
-    
+
     // T+1100ms
     zclock_sleep (5000 - (zclock_time () - TEST_START_MS) - 3900);
 
