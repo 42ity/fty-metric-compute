@@ -103,7 +103,6 @@ s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
     double value = atof (fty_proto_value ((fty_proto_t*) bmsg));
     uint64_t count = fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double sum = atof (fty_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"));
-    bool r = false;
 
     if (isnan (value) || isnan (sum)) {
         zsys_warning ("s_arithmetic_mean: isnan value(%s) or sum (%s) for %s@%s, skipping",
@@ -112,32 +111,30 @@ s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
             fty_proto_type ((fty_proto_t*) bmsg),
             fty_proto_name ((fty_proto_t*) bmsg)
         );
+        return false;
     }
-    else {
-        // 0 means that we have first value
-        if (count == 0)
-            sum = value;
-        else
-            sum += value;
 
-        double avg = (sum / (count+1));
-        if (isnan (avg)) {
-            zsys_error ("s_arithmetic_mean: isnan (avg) %f / (%"PRIu64 " + 1), for %s@%s, skipping",
-                sum,
-                count,
-                fty_proto_type ((fty_proto_t*) bmsg),
-                fty_proto_name ((fty_proto_t*) bmsg)
-                );
-            return r;
-        }
-        else {
-            // Sample was accepted
-            fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%f", sum);
-            fty_proto_set_value (stat_msg, "%.2f", avg);
-            r = true;
-        }
+    // 0 means that we have first value
+    if (count == 0)
+        sum = value;
+    else
+        sum += value;
+
+    double avg = (sum / (count+1));
+    if (isnan (avg)) {
+        zsys_error ("s_arithmetic_mean: isnan (avg) %f / (%"PRIu64 " + 1), for %s@%s, skipping",
+            sum,
+            count,
+            fty_proto_type ((fty_proto_t*) bmsg),
+            fty_proto_name ((fty_proto_t*) bmsg)
+            );
+        return false;
     }
-    return r;
+
+    // Sample was accepted
+    fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%f", sum);
+    fty_proto_set_value (stat_msg, "%.2f", avg);
+    return true;
 }
 
 //  --------------------------------------------------------------------------
