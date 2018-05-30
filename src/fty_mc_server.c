@@ -332,7 +332,7 @@ fty_mc_server (zsock_t *pipe, void *args)
             // sometimes we do have nan in values, report if we get something like that on METRICS
             double value = atof (fty_proto_value (bmsg));
             if (isnan (value)) {
-                zsys_warning ("%s:\tisnan ('%s'), subject='%s', sender='%s'",
+                zsys_warning ("%s:\tisnan ('%lf'), subject='%s', sender='%s'",
                         self->name,
                         value,
                         mlm_client_subject (self->client),
@@ -479,6 +479,16 @@ fty_mc_server_test (bool verbose)
             "20",
             "UNIT");
     mlm_client_send (producer, "realpower.default@", &msg);
+
+    msg = fty_proto_encode_metric (
+            NULL,
+            time (NULL),
+            10,
+            "realpower.default",
+            "DEV1",
+            "nan",
+            "UNIT");
+    mlm_client_send (producer, "realpower.default@DEV1", &msg);
 
     msg = fty_proto_encode_metric (
             NULL,

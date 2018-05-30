@@ -53,7 +53,7 @@ s_duplicator (const void *self)
 // find minimum value
 // \param bmsg - input new metric
 // \param stat_msg - output statistic metric
-static void
+static bool
 s_min (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
 {
     assert (bmsg);
@@ -61,17 +61,20 @@ s_min (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
     double bmsg_value = atof (fty_proto_value ((fty_proto_t*) bmsg));
     uint64_t count = fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double stat_value = atof (fty_proto_value (stat_msg));
+
     if (isnan (stat_value)
     ||  count == 0
     || (bmsg_value < stat_value)) {
         fty_proto_set_value (stat_msg, "%.2f", bmsg_value);
     }
+
+    return true;
 }
 
 // find maximum value
 // \param bmsg - input new metric
 // \param stat_msg - output statistic metric
-static void
+static bool
 s_max (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
 {
     assert (bmsg);
@@ -85,12 +88,14 @@ s_max (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
     || (bmsg_value > stat_value)) {
         fty_proto_set_value (stat_msg, "%.2f", bmsg_value);
     }
+
+    return true;
 }
 
 // find average value
 // \param bmsg - input new metric
 // \param stat_msg - output statistic metric
-static void
+static bool
 s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
 {
     assert (bmsg);
@@ -106,7 +111,7 @@ s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
             fty_proto_type ((fty_proto_t*) bmsg),
             fty_proto_name ((fty_proto_t*) bmsg)
         );
-        return;
+        return false;
     }
 
     // 0 means that we have first value
@@ -123,11 +128,13 @@ s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
             fty_proto_type ((fty_proto_t*) bmsg),
             fty_proto_name ((fty_proto_t*) bmsg)
             );
-        return;
+        return false;
     }
 
+    // Sample was accepted
     fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%f", sum);
     fty_proto_set_value (stat_msg, "%.2f", avg);
+    return true;
 }
 
 //  --------------------------------------------------------------------------
@@ -253,23 +260,26 @@ cmstats_put (
         return ret;
     }
 
+    bool value_accepted = false;
     // if we're inside the interval, simply do the computation
     if (streq (addr_fun, "min"))
-        s_min (bmsg, stat_msg);
+        value_accepted = s_min (bmsg, stat_msg);
     else
     if (streq (addr_fun, "max"))
-        s_max (bmsg, stat_msg);
+        value_accepted = s_max (bmsg, stat_msg);
     else
     if (streq (addr_fun, "arithmetic_mean"))
-        s_arithmetic_mean (bmsg, stat_msg);
+        value_accepted = s_arithmetic_mean (bmsg, stat_msg);
     // fail otherwise
     else
         assert (false);
 
     // increase the counter
-    fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "%"PRIu64,
-        fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0) + 1
-    );
+    if (value_accepted) {
+        fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "%"PRIu64,
+            fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0) + 1
+        );
+    }
 
     return NULL;
 }
