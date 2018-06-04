@@ -1,7 +1,7 @@
 /*  =========================================================================
     fty-metric-compute - generated layer of public API
 
-    Copyright (C) 2016 - 2017 Eaton
+    Copyright (C) 2016 - 2018 Eaton
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -63,11 +63,12 @@
 #   define FTY_METRIC_COMPUTE_EXPORT
 #   define FTY_METRIC_COMPUTE_PRIVATE
 #else
-#   define FTY_METRIC_COMPUTE_EXPORT
 #   if (defined __GNUC__ && __GNUC__ >= 4) || defined __INTEL_COMPILER
 #       define FTY_METRIC_COMPUTE_PRIVATE __attribute__ ((visibility ("hidden")))
+#       define FTY_METRIC_COMPUTE_EXPORT __attribute__ ((visibility ("default")))
 #   else
 #       define FTY_METRIC_COMPUTE_PRIVATE
+#       define FTY_METRIC_COMPUTE_EXPORT
 #   endif
 #endif
 
@@ -81,9 +82,18 @@ typedef struct _fty_mc_server_t fty_mc_server_t;
 #include "fty_mc_server.h"
 
 #ifdef FTY_METRIC_COMPUTE_BUILD_DRAFT_API
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //  Self test for private classes
 FTY_METRIC_COMPUTE_EXPORT void
-    fty_metric_compute_private_selftest (bool verbose);
+    fty_metric_compute_private_selftest (bool verbose, const char *subtest);
+
+#ifdef __cplusplus
+}
+#endif
 #endif // FTY_METRIC_COMPUTE_BUILD_DRAFT_API
 
 #endif
