@@ -1,5 +1,6 @@
 /*  =========================================================================
     cmsteps - Helper class for list of steps
+    Note: This file was manually amended, see below
 
     Copyright (C) 2016 - 2017 Eaton
 
@@ -73,7 +74,8 @@ FTY_METRIC_COMPUTE_EXPORT const void *
     cmsteps_cursor (cmsteps_t *self);
 
 //  Self test of this class
-FTY_METRIC_COMPUTE_EXPORT void
+//  Note: Keep in sync with definition in fty_metric_compute_classes.h
+FTY_METRIC_COMPUTE_PRIVATE void
     cmsteps_test (bool verbose);
 
 //  @end
