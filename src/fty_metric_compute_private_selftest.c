@@ -4,7 +4,7 @@
     Runs all private classes selftests.
 
     -------------------------------------------------------------------------
-    Copyright (C) 2016 - 2017 Eaton
+    Copyright (C) 2016 - 2018 Eaton
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -35,11 +35,13 @@
 //
 
 void
-fty_metric_compute_private_selftest (bool verbose)
+fty_metric_compute_private_selftest (bool verbose, const char *subtest)
 {
 // Tests for stable private classes:
-    cmstats_test (verbose);
-    cmsteps_test (verbose);
+    if (streq (subtest, "$ALL") || streq (subtest, "cmstats_test"))
+        cmstats_test (verbose);
+    if (streq (subtest, "$ALL") || streq (subtest, "cmsteps_test"))
+        cmsteps_test (verbose);
 }
 /*
 ################################################################################
