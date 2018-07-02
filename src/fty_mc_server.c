@@ -300,12 +300,13 @@ fty_mc_server (zsock_t *pipe, void *args)
         fty_proto_t *bmsg = fty_proto_decode (&msg);
 
         // If we received an asset message
-        // * "delete" or "retire"  -> drop all computations on that asset
+        // * "delete", "retire" or non active asset  -> drop all computations on that asset
         // *  other                -> ignore it, as it doesn't impact this agent
         if ( fty_proto_id (bmsg) == FTY_PROTO_ASSET ) {
             const char *op = fty_proto_operation (bmsg);
             if (streq (op, "delete")
-            ||  streq (op, "retire"))
+            ||  streq (op, "retire")
+            || !streq (fty_proto_aux_string (bmsg, FTY_PROTO_ASSET_STATUS, "active"), "active"))
                 cmstats_delete_asset (self->stats, fty_proto_name (bmsg));
 
             fty_proto_destroy (&bmsg);
