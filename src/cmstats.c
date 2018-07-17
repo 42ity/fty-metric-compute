@@ -105,7 +105,7 @@ s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
     double sum = atof (fty_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"));
 
     if (isnan (value) || isnan (sum)) {
-        zsys_warning ("s_arithmetic_mean: isnan value(%s) or sum (%s) for %s@%s, skipping",
+        log_warning ("s_arithmetic_mean: isnan value(%s) or sum (%s) for %s@%s, skipping",
             fty_proto_value ((fty_proto_t*) bmsg),
             fty_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"),
             fty_proto_type ((fty_proto_t*) bmsg),
@@ -122,7 +122,7 @@ s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
 
     double avg = (sum / (count+1));
     if (isnan (avg)) {
-        zsys_error ("s_arithmetic_mean: isnan (avg) %f / (%"PRIu64 " + 1), for %s@%s, skipping",
+        log_error ("s_arithmetic_mean: isnan (avg) %f / (%"PRIu64 " + 1), for %s@%s, skipping",
             sum,
             count,
             fty_proto_type ((fty_proto_t*) bmsg),
@@ -183,7 +183,7 @@ cmstats_print (cmstats_t *self)
                it != NULL;
                it = zhashx_next (self->stats))
     {
-        zsys_debug ("%s =>", (char*) zhashx_cursor (self->stats));
+        log_debug ("%s =>", (char*) zhashx_cursor (self->stats));
         fty_proto_print ((fty_proto_t*) it);
     }
 }
@@ -319,7 +319,7 @@ cmstats_delete_asset (cmstats_t *self, const char *asset_name)
 //  Polling handler - publish && reset the computed values
 
 void
-cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
+cmstats_poll (cmstats_t *self, mlm_client_t *client)
 {
     assert (self);
     assert (client);
@@ -340,8 +340,7 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
         // What SHOULD be an assigned time for the NEW stat metric (in our case it is a left margin in the NEW interval)
         uint64_t metric_time_new_s = (now_ms - (now_ms % (step * 1000))) / 1000;
 
-        if (verbose)
-            zsys_debug ("cmstats_poll: key=%s\n\tnow_ms=%"PRIu64 ", metric_time_new_s=%"PRIu64 ", metric_time_s=%"PRIu64 ", (now_ms - (metric_time_s * 1000))=%" PRIu64 "s, step*1000=%"PRIu32 "ms",
+        log_debug ("cmstats_poll: key=%s\n\tnow_ms=%"PRIu64 ", metric_time_new_s=%"PRIu64 ", metric_time_s=%"PRIu64 ", (now_ms - (metric_time_s * 1000))=%" PRIu64 "s, step*1000=%"PRIu32 "ms",
             key,
             now_ms,
             metric_time_new_s,
@@ -360,14 +359,13 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client, bool verbose)
 
             fty_proto_set_value (stat_msg, "0");  // As we do not receive any message, start from ZERO
 
-            if (verbose) {
-                zsys_debug ("cmstats:\tPublishing message wiht subject=%s", key);
-                fty_proto_print (ret);
-            }
+            log_debug ("cmstats:\tPublishing message wiht subject=%s", key);
+            fty_proto_print (ret);
+
             zmsg_t *msg = fty_proto_encode (&ret);
             int r = mlm_client_send (client, key, &msg);
             if ( r == -1 ) {
-                zsys_error ("cmstats:\tCannot publish statistics");
+                log_error ("cmstats:\tCannot publish statistics");
             }
         }
     }
@@ -453,7 +451,7 @@ cmstats_load (const char *filename)
 
         double value = atof (fty_proto_value (bmsg));
         if (isnan (value)) {
-            zsys_warning ("cmstats_load:\tisnan (%s) for %s@%s, ignoring",
+            log_warning ("cmstats_load:\tisnan (%s) for %s@%s, ignoring",
                     fty_proto_value (bmsg),
                     fty_proto_type (bmsg),
                     fty_proto_name (bmsg)
@@ -493,27 +491,22 @@ void
 cmstats_test (bool verbose)
 {
     printf (" * cmstats: ");
-    if (verbose)
-        printf ("\n");
+    printf ("\n");
 
     //  @selftest
-
     static const char *file = "src/cmstats.zpl";
     unlink (file);
 
-    if ( verbose )
-        zsys_info ("Test 1: Simple test on empty structure");
+    log_info ("Test 1: Simple test on empty structure");
     cmstats_t *self = cmstats_new ();
     assert (self);
     cmstats_print (self);
     cmstats_delete_asset (self, "SOMESTRING");
     // TODO uncomment, when tests for this function would be supported
-    // cmstats_poll (self, client, verbose);
+    // cmstats_poll (self, client);
     cmstats_save (self, "itshouldbeemptyfile");
     cmstats_destroy (&self);
-
-    if ( verbose )
-        zsys_info ("Test2: some test");
+    log_info ("Test2: some test");
     self = cmstats_new ();
     //XXX: the test is sensitive on timing!!!
     //     so it must start at the beggining of the second
@@ -524,11 +517,11 @@ cmstats_test (bool verbose)
         int64_t now_ms = zclock_time ();
         int64_t sl = 1000 - (now_ms % 1000);
         zclock_sleep (sl);
-        if (verbose)
-            zsys_debug ("now_ms=%"PRIi64 ", sl=%"PRIi64 ", now=%"PRIi64,
-                now_ms,
-                sl,
-                zclock_time ());
+
+        log_debug ("now_ms=%"PRIi64 ", sl=%"PRIi64 ", now=%"PRIi64,
+                   now_ms,
+                   sl,
+                   zclock_time ());
     }
 
     // 1. min test
@@ -588,8 +581,8 @@ cmstats_test (bool verbose)
     //  1.4 check the minimal value
     stats = cmstats_put (self, "min", "1s", 1, bmsg);
     assert (stats);
-    if (verbose)
-        fty_proto_print (stats);
+
+    fty_proto_print (stats);
     assert (streq (fty_proto_value (stats), "42.11"));
     assert (streq (fty_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     fty_proto_destroy (&stats);
@@ -597,8 +590,8 @@ cmstats_test (bool verbose)
     //  1.5 check the maximum value
     stats = cmstats_put (self, "max", "1s", 1, bmsg);
     assert (stats);
-    if (verbose)
-        fty_proto_print (stats);
+
+    fty_proto_print (stats);
     assert (streq (fty_proto_value (stats), "100.989999"));
     assert (streq (fty_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     fty_proto_destroy (&stats);
@@ -606,11 +599,11 @@ cmstats_test (bool verbose)
     //  1.6 check the arithmetic_mean
     stats = cmstats_put (self, "arithmetic_mean", "1s", 1, bmsg);
     assert (stats);
-    if (verbose) {
-        fty_proto_print (stats);
-        zsys_info ("avg real: %s", fty_proto_value (stats) );
-        zsys_info ("avg expected: %f", (100.989999+42.11) / 2 );
-    }
+
+    fty_proto_print (stats);
+    log_info ("avg real: %s", fty_proto_value (stats) );
+    log_info ("avg expected: %f", (100.989999+42.11) / 2 );
+
     char *xxx = NULL;
     int r = asprintf (&xxx, "%.2f", (100.99+42.1) / 2);
     assert (r != -1);   // make gcc @ rhel happy

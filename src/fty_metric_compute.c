@@ -27,7 +27,8 @@
 */
 
 #include "fty_metric_compute_classes.h"
-
+#define ACTOR_NAME "fty-metric-compute"
+#define AGENT_CONF "/etc/fty-metric-compute/fty-metric-compute.cfg"
 static const char* DEFAULT_ENDPOINT = "ipc://@/malamute";
 
 int main (int argc, char *argv [])
@@ -36,14 +37,16 @@ int main (int argc, char *argv [])
     int argn;
 
     const char *endpoint = DEFAULT_ENDPOINT;
+    char *config = NULL;
 
     for (argn = 1; argn < argc; argn++) {
         if (streq (argv [argn], "--help")
         ||  streq (argv [argn], "-h")) {
             puts ("fty-metric-compute [options] ...");
-            puts ("  --verbose / -v         verbose test output");
+            puts ("  --verbose / -v         verbose output");
             puts ("  --endpoint / -e        malamute endpoint (default ipc://@/malamute)");
             puts ("  --help / -h            this information");
+            puts ("  --config / -c          config file for logging");
             return 0;
         }
         else
@@ -57,7 +60,17 @@ int main (int argc, char *argv [])
             if (argc > argn)
                 endpoint = (const char*) argv [argn];
             else {
-                zsys_error ("-e/--endpoint expects an argument");
+                log_error ("-e/--endpoint expects an argument");
+                return 1;
+            }
+        }
+        else if (streq (argv [argn], "--config") || streq (argv [argn], "-c")) {
+            argn += 1;
+            if (argc > argn)
+                config = argv [argn];
+            else {
+                log_error ("-c/--config expects argument");
+                return 1;
             }
         }
         else {
@@ -66,16 +79,22 @@ int main (int argc, char *argv [])
         }
     }
 
-    if (getenv ("BIOS_LOG_LEVEL")
-    && streq (getenv ("BIOS_LOG_LEVEL"), "LOG_DEBUG"))
-        verbose = true;
+    if (!config) {
+        zconfig_t *cfg = zconfig_load (AGENT_CONF);
+        if (cfg) {
+            config = zconfig_get (cfg, "log/config","/etc/fty/ftylog.cfg");
+        }
+    }
 
-    if (verbose)
-        zsys_info ("START: fty_agent_cm - starting at endpoint=%s", endpoint);
+    ftylog_setInstance (ACTOR_NAME, config);
+    Ftylog *log = ftylog_getInstance ();
 
-    zactor_t *cm_server = zactor_new (fty_mc_server, "fty-metric-compute");
-    if (verbose)
-        zstr_sendx (cm_server, "VERBOSE", NULL);
+    if (verbose == true) {
+        ftylog_setVeboseMode (log);
+    }
+    log_info ("%s - started connected to %", ACTOR_NAME, endpoint);
+
+    zactor_t *cm_server = zactor_new (fty_mc_server, ACTOR_NAME);
     zstr_sendx (cm_server, "TYPES", "min", "max", "arithmetic_mean", NULL);
     zstr_sendx (cm_server, "STEPS", "15m", "30m", "1h", "8h", "24h", "7d", "30d", NULL);
     // TODO: Make this configurable, runtime and build-time default
@@ -99,7 +118,8 @@ int main (int argc, char *argv [])
     }
 
     zactor_destroy (&cm_server);
-    if (verbose)
-        zsys_info ("END: fty_agent_cm is stopped");
+    ftylog_delete (log);
+
+    log_info ("END: fty_agent_cm is stopped");
     return 0;
 }

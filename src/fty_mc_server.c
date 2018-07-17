@@ -32,7 +32,6 @@
 // TODO: move to class sometime
 // It is a "CM" entity
 typedef struct _cm_t {
-    bool verbose;           // is server verbose or not
     char *name;             // server name
     cmstats_t *stats;       // computed statictics for all types and steps
     cmsteps_t *steps;       // info about supported steps
@@ -74,7 +73,6 @@ cm_new (const char* name)
     assert (name);
     cm_t *self = (cm_t*) zmalloc (sizeof (cm_t));
     if (self) {
-        self->verbose = false;
         self->name = strdup (name);
         if (self->name)
             self->stats = cmstats_new ();
@@ -125,13 +123,13 @@ fty_mc_server (zsock_t *pipe, void *args)
             // Compute the left border of the interval:
             // length_of_the_minimal_interval - part_of_interval_already_passed
             interval_ms = (cmsteps_gcd (self->steps) - (now_s % cmsteps_gcd (self->steps))) * 1000;
-            if (self->verbose)
-                zsys_debug ("%s:\tnow=%"PRIu64 "s, cmsteps_gcd=%"PRIu32 "s, interval=%dms",
-                        self->name,
-                        now_s,
-                        cmsteps_gcd (self->steps),
-                        interval_ms
-                        );
+
+            log_debug ("%s:\tnow=%"PRIu64 "s, cmsteps_gcd=%"PRIu32 "s, interval=%dms",
+                       self->name,
+                       now_s,
+                       cmsteps_gcd (self->steps),
+                       interval_ms
+            );
         }
 
         // wait for interval left
@@ -151,24 +149,23 @@ fty_mc_server (zsock_t *pipe, void *args)
         if ((!which && zpoller_expired (poller))
         ||  (last_poll_ms > 0 &&  ( (zclock_time () - last_poll_ms) > cmsteps_gcd (self->steps) * 1000 )) ) {
 
-            if (self->verbose) {
-                if (zpoller_expired (poller))
-                    zsys_debug ("%s:\tzpoller_expired, calling cmstats_poll", self->name);
-                else
-                    zsys_debug ("%s:\ttime (not zpoller) expired, calling cmstats_poll", self->name);
-            }
+
+            if (zpoller_expired (poller))
+                log_debug ("%s:\tzpoller_expired, calling cmstats_poll", self->name);
+            else
+                log_debug ("%s:\ttime (not zpoller) expired, calling cmstats_poll", self->name);
+
             // Publish metrics and reset the computation where needed
-            cmstats_poll (self->stats, self->client, self->verbose);
+            cmstats_poll (self->stats, self->client);
             // State is saved every time, when something is published
             // Something is published every "steps_gcd" interval
             // In the most of the cases (steps_gcd = "minimal_interval")
             if (self->filename) {
                 int r = cmstats_save (self->stats, self->filename);
                 if (r == -1)
-                    zsys_error ("%s:\tFailed to save %s: %s", self->name, self->filename, strerror (errno));
+                    log_error ("%s:\tFailed to save %s: %s", self->name, self->filename, strerror (errno));
                 else
-                    if (self->verbose)
-                        zsys_info ("%s:\t'%s' saved succesfully", self->name, self->filename);
+                    log_info ("%s:\t'%s' saved succesfully", self->name, self->filename);
             }
             // Record the time, when something was published last time
             last_poll_ms = zclock_time ();
@@ -182,19 +179,14 @@ fty_mc_server (zsock_t *pipe, void *args)
         {
             zmsg_t *msg = zmsg_recv (pipe);
             char *command = zmsg_popstr (msg);
-            if (self->verbose)
-                zsys_debug ("%s:\tAPI command=%s", self->name, command);
+
+            log_debug ("%s:\tAPI command=%s", self->name, command);
 
             if (streq (command, "$TERM")) {
-                zsys_info ("Got $TERM");
+                log_info ("Got $TERM");
                 zstr_free (&command);
                 zmsg_destroy (&msg);
                 break;
-            }
-            else
-            if (streq (command, "VERBOSE")) {
-                self->verbose = true;
-                zsys_debug ("%s:\tVERBOSE", self->name);
             }
             else
             if (streq (command, "DIR")) {
@@ -205,15 +197,14 @@ fty_mc_server (zsock_t *pipe, void *args)
                 if (zfile_exists (self->filename)) {
                     cmstats_t *foo = cmstats_load (self->filename);
                     if (!foo)
-                        zsys_error ("%s:\tFailed to load '%s'", self->name, self->filename);
+                        log_error ("%s:\tFailed to load '%s'", self->name, self->filename);
                     else {
-                        if (self->verbose)
-                            zsys_info ("%s:\tLoaded '%s'", self->name, self->filename);
+                        log_info ("%s:\tLoaded '%s'", self->name, self->filename);
                         cmstats_destroy (&self->stats);
                         self->stats = foo;
                     }
                 } else {
-                    zsys_info ("%s:\tState file '%s' doesn't exists", self->name, self->filename);
+                    log_info ("%s:\tState file '%s' doesn't exists", self->name, self->filename);
                 }
 
                 zfile_destroy (&f);
@@ -224,7 +215,7 @@ fty_mc_server (zsock_t *pipe, void *args)
                 char* stream = zmsg_popstr (msg);
                 int r = mlm_client_set_producer (self->client, stream);
                 if (r == -1)
-                    zsys_error ("%s:\tCan't set producer on stream '%s'", self->name, stream);
+                    log_error ("%s:\tCan't set producer on stream '%s'", self->name, stream);
                 zstr_free (&stream);
             }
             else
@@ -233,7 +224,7 @@ fty_mc_server (zsock_t *pipe, void *args)
                 char* pattern = zmsg_popstr (msg);
                 int rv = mlm_client_set_consumer (self->client, stream, pattern);
                 if (rv == -1)
-                    zsys_error ("%s:\tCan't set consumer on stream '%s', '%s'", self->name, stream, pattern);
+                    log_error ("%s:\tCan't set consumer on stream '%s', '%s'", self->name, stream, pattern);
                 zstr_free (&pattern);
                 zstr_free (&stream);
             }
@@ -242,12 +233,12 @@ fty_mc_server (zsock_t *pipe, void *args)
             {
                 char *endpoint = zmsg_popstr (msg);
                 if (!endpoint)
-                    zsys_error ("%s:\tMissing endpoint", self->name);
+                    log_error ("%s:\tMissing endpoint", self->name);
                 else
                 {
                     int r = mlm_client_connect (self->client, endpoint, 5000, self->name);
                     if (r == -1)
-                        zsys_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
+                        log_error ("%s:\tConnection to endpoint '%s' failed", self->name, endpoint);
 
                 }
                 zstr_free (&endpoint);
@@ -262,7 +253,7 @@ fty_mc_server (zsock_t *pipe, void *args)
                         break;
                     int r = cmsteps_put (self->steps, foo);
                     if (r == -1)
-                        zsys_info ("%s:\tIgnoring unrecognized step='%s'", self->name, foo);
+                        log_info ("%s:\tIgnoring unrecognized step='%s'", self->name, foo);
                     zstr_free (&foo);
                 }
             }
@@ -280,7 +271,7 @@ fty_mc_server (zsock_t *pipe, void *args)
                 }
             }
             else
-                zsys_warning ("%s:\tUnkown API command=%s, ignoring", self->name, command);
+                log_warning ("%s:\tUnkown API command=%s, ignoring", self->name, command);
 
             zstr_free (&command);
             zmsg_destroy (&msg);
@@ -289,7 +280,7 @@ fty_mc_server (zsock_t *pipe, void *args)
 
         zmsg_t *msg = mlm_client_recv (self->client);
         if ( !msg ) {
-            zsys_error ("%s:\tmlm_client_recv() == NULL", self->name);
+            log_error ("%s:\tmlm_client_recv() == NULL", self->name);
             continue;
         }
 
@@ -321,7 +312,7 @@ fty_mc_server (zsock_t *pipe, void *args)
             // get rid of messages with empty or null name
             if (fty_proto_name (bmsg) == NULL || streq (fty_proto_name (bmsg), ""))
             {
-                zsys_warning ("%s: invalid \'name\' = (%s), \tsubject=%s, sender=%s",
+                log_warning ("%s: invalid \'name\' = (%s), \tsubject=%s, sender=%s",
                         self->name,
                         fty_proto_name (bmsg) ?  fty_proto_name (bmsg) : "null",
                         mlm_client_subject (self->client),
@@ -333,7 +324,7 @@ fty_mc_server (zsock_t *pipe, void *args)
             // sometimes we do have nan in values, report if we get something like that on METRICS
             double value = atof (fty_proto_value (bmsg));
             if (isnan (value)) {
-                zsys_warning ("%s:\tisnan ('%lf'), subject='%s', sender='%s'",
+                log_warning ("%s:\tisnan ('%lf'), subject='%s', sender='%s'",
                         self->name,
                         value,
                         mlm_client_subject (self->client),
@@ -362,7 +353,7 @@ fty_mc_server (zsock_t *pipe, void *args)
                         zmsg_t *msg = fty_proto_encode (&stat_msg);
                         int r = mlm_client_send (self->client, subject, &msg);
                         if ( r == -1 ) {
-                            zsys_error ("%s:\tCannot publish statistics", self->name);
+                            log_error ("%s:\tCannot publish statistics", self->name);
                         }
                         zstr_free (&subject);
                     }
@@ -373,7 +364,7 @@ fty_mc_server (zsock_t *pipe, void *args)
         }
 
         // We received some unexpected message
-        zsys_warning ("%s:\tUnexpected message from sender=%s, subject=%s",
+        log_warning ("%s:\tUnexpected message from sender=%s, subject=%s",
                 self->name, mlm_client_sender(self->client), mlm_client_subject(self->client));
 
         fty_proto_destroy (&bmsg);
@@ -383,10 +374,9 @@ fty_mc_server (zsock_t *pipe, void *args)
     if (self->filename) {
         int r = cmstats_save (self->stats, self->filename);
         if (r == -1)
-            zsys_error ("%s:\tFailed to save '%s': %s", self->name, self->filename, strerror (errno));
+            log_error ("%s:\tFailed to save '%s': %s", self->name, self->filename, strerror (errno));
         else
-            if (self->verbose)
-                zsys_info ("%s:\tSaved succesfully '%s'", self->name, self->filename);
+            log_info ("%s:\tSaved succesfully '%s'", self->name, self->filename);
     }
 
     cm_destroy (&self);
@@ -401,8 +391,7 @@ void
 fty_mc_server_test (bool verbose)
 {
     printf (" * fty_mc_server:");
-    if (verbose)
-        printf ("\n");
+    printf ("\n");
 
     //  @selftest
     unlink ("src/state.zpl");
@@ -411,8 +400,6 @@ fty_mc_server_test (bool verbose)
 
     // create broker
     zactor_t *server = zactor_new (mlm_server, "Malamute");
-    if (verbose)
-        zstr_sendx (server, "VERBOSE", NULL);
     zstr_sendx (server, "BIND", endpoint, NULL);
 
     mlm_client_t *producer = mlm_client_new ();
@@ -430,8 +417,7 @@ fty_mc_server_test (bool verbose)
     mlm_client_set_consumer (consumer_5s, FTY_PROTO_STREAM_METRICS, ".*(min|max|arithmetic_mean)_5s.*");
 
     zactor_t *cm_server = zactor_new (fty_mc_server, "fty-mc-server");
-    if (verbose)
-        zstr_sendx (cm_server, "VERBOSE", NULL);
+
     zstr_sendx (cm_server, "TYPES", "min", "max", "arithmetic_mean", NULL);
     zstr_sendx (cm_server, "STEPS", "1s", "5s", NULL);
     zstr_sendx (cm_server, "DIR", "src", NULL);
@@ -449,16 +435,15 @@ fty_mc_server_test (bool verbose)
         int64_t now_ms = zclock_time ();
         int64_t sl = 5000 - (now_ms % 5000);
         zclock_sleep (sl);
-        if (verbose)
-            zsys_debug ("now_ms=%"PRIi64 ", sl=%"PRIi64 ", now=%"PRIi64,
-                now_ms,
-                sl,
-                zclock_time ());
+
+        log_debug ("now_ms=%"PRIi64 ", sl=%"PRIi64 ", now=%"PRIi64,
+                   now_ms,
+                   sl,
+                   zclock_time ());
     }
 
     int64_t TEST_START_MS = zclock_time ();
-    if (verbose)
-        zsys_debug ("TEST_START_MS=%"PRIi64, TEST_START_MS);
+    log_debug ("TEST_START_MS=%"PRIi64, TEST_START_MS);
 
     zmsg_t *msg = fty_proto_encode_metric (
             NULL,
@@ -510,10 +495,8 @@ fty_mc_server_test (bool verbose)
         msg = mlm_client_recv (consumer_1s);
         bmsg = fty_proto_decode (&msg);
 
-        if (verbose) {
-            zsys_debug ("subject=%s", mlm_client_subject (consumer_1s));
-            fty_proto_print (bmsg);
-        }
+        log_debug ("subject=%s", mlm_client_subject (consumer_1s));
+        fty_proto_print (bmsg);
 
         const char *type = fty_proto_aux_string (bmsg, AGENT_CM_TYPE, "");
         if (streq (type, "min")) {
@@ -566,10 +549,9 @@ fty_mc_server_test (bool verbose)
     {
         msg = mlm_client_recv (consumer_1s);
         fty_proto_t *bmsg = fty_proto_decode (&msg);
-        if (verbose) {
-            zsys_debug ("subject=%s", mlm_client_subject (consumer_1s));
-            fty_proto_print (bmsg);
-        }
+
+        log_debug ("subject=%s", mlm_client_subject (consumer_1s));
+        fty_proto_print (bmsg);
         /* It is not reliable under memcheck, because of timing
         static const char* values[] = {"0", "42.000000", "242.000000", "142.000000"};
         bool test = false;
@@ -596,11 +578,9 @@ fty_mc_server_test (bool verbose)
         msg = mlm_client_recv (consumer_5s);
         bmsg = fty_proto_decode (&msg);
 
-        if (verbose) {
-            zsys_debug ("zclock_time=%"PRIi64 "ms", zclock_time ());
-            zsys_debug ("subject=%s", mlm_client_subject (consumer_5s));
-            fty_proto_print (bmsg);
-        }
+        log_debug ("zclock_time=%"PRIi64 "ms", zclock_time ());
+        log_debug ("subject=%s", mlm_client_subject (consumer_5s));
+        fty_proto_print (bmsg);
 
         const char *type = fty_proto_aux_string (bmsg, AGENT_CM_TYPE, "");
 
@@ -617,7 +597,7 @@ fty_mc_server_test (bool verbose)
         if (streq (type, "arithmetic_mean")) {
             assert (streq (mlm_client_subject (consumer_5s), "realpower.default_arithmetic_mean_5s@DEV1"));
             // (100 + 50 + 42 + 242) / 5
-            zsys_debug ("value=%s", fty_proto_value (bmsg));
+            log_debug ("value=%s", fty_proto_value (bmsg));
             assert (streq (fty_proto_value (bmsg), "108.50"));
         }
         else
