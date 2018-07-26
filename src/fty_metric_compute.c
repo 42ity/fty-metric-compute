@@ -38,6 +38,9 @@ int main (int argc, char *argv [])
 
     const char *endpoint = DEFAULT_ENDPOINT;
     char *config = NULL;
+    const char *log_config = "";
+
+    ftylog_setInstance (ACTOR_NAME, log_config);
 
     for (argn = 1; argn < argc; argn++) {
         if (streq (argv [argn], "--help")
@@ -82,17 +85,15 @@ int main (int argc, char *argv [])
     if (!config) {
         zconfig_t *cfg = zconfig_load (AGENT_CONF);
         if (cfg) {
-            config = zconfig_get (cfg, "log/config","/etc/fty/ftylog.cfg");
+            log_config = zconfig_get (cfg, "log/config","/etc/fty/ftylog.cfg");
+            ftylog_setConfigFile (ftylog_getInstance (), log_config);
         }
     }
 
-    ftylog_setInstance (ACTOR_NAME, config);
-    Ftylog *log = ftylog_getInstance ();
-
-    if (verbose == true) {
-        ftylog_setVeboseMode (log);
+    if (verbose) {
+        ftylog_setVeboseMode (ftylog_getInstance ());
     }
-    log_info ("%s - started connected to %", ACTOR_NAME, endpoint);
+    log_info ("%s - started connected to %s", ACTOR_NAME, endpoint);
 
     zactor_t *cm_server = zactor_new (fty_mc_server, ACTOR_NAME);
     zstr_sendx (cm_server, "TYPES", "min", "max", "arithmetic_mean", NULL);
@@ -118,7 +119,6 @@ int main (int argc, char *argv [])
     }
 
     zactor_destroy (&cm_server);
-    ftylog_delete (log);
 
     log_info ("END: fty_agent_cm is stopped");
     return 0;
