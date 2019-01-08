@@ -170,9 +170,8 @@ fty_metric_compute_metric_pull (zsock_t *pipe, void* args)
         }
         if (zpoller_expired (poller)) {
           fty::shm::shmMetrics result;
-          log_debug("read metrics !");
           fty::shm::read_metrics(FTY_SHM_METRIC_TYPE, ".*", "^realpower\\.default.*|.*temperature.*|.*humidity.*",  result);
-          log_debug("metric reads : %d", result.size());
+          log_debug("number of metrics reads : %d", result.size());
           for (auto &element : result) {
             s_handle_metric(element, self, true);
           }
@@ -452,12 +451,12 @@ fty_mc_server_test (bool verbose)
 {
     printf (" * fty_mc_server:");
     printf ("\n");
+    assert(fty_shm_set_test_dir("src/selftest-rw") == 0);
 
     //  @selftest
     unlink ("src/state.zpl");
     
-    fty_shm_set_default_polling_interval(5);
-    fty_shm_set_test_dir("src/selftest-rw");
+    fty_shm_set_default_polling_interval(2);
 
     static const char *endpoint = "inproc://cm-server-test";
 
@@ -471,18 +470,18 @@ fty_mc_server_test (bool verbose)
 
     // 1s consumer
     mlm_client_t *consumer_1s = mlm_client_new ();
-    mlm_client_connect (consumer_1s, endpoint, 5000, "consumer_1s");
-    mlm_client_set_consumer (consumer_1s, FTY_PROTO_STREAM_METRICS, ".*(min|max|arithmetic_mean)_1s.*");
+    mlm_client_connect (consumer_1s, endpoint, 5000, "consumer_10s");
+    mlm_client_set_consumer (consumer_1s, FTY_PROTO_STREAM_METRICS, ".*(min|max|arithmetic_mean)_10s.*");
 
     // 5s consumer
     mlm_client_t *consumer_5s = mlm_client_new ();
-    mlm_client_connect (consumer_5s, endpoint, 5000, "consumer_5s");
-    mlm_client_set_consumer (consumer_5s, FTY_PROTO_STREAM_METRICS, ".*(min|max|arithmetic_mean)_5s.*");
+    mlm_client_connect (consumer_5s, endpoint, 5000, "consumer_50s");
+    mlm_client_set_consumer (consumer_5s, FTY_PROTO_STREAM_METRICS, ".*(min|max|arithmetic_mean)_50s.*");
 
     zactor_t *cm_server = zactor_new (fty_mc_server, (void*)"fty-mc-server");
 
     zstr_sendx (cm_server, "TYPES", "min", "max", "arithmetic_mean", NULL);
-    zstr_sendx (cm_server, "STEPS", "1s", "5s", NULL);
+    zstr_sendx (cm_server, "STEPS", "10s", "50s", NULL);
     zstr_sendx (cm_server, "DIR", "src", NULL);
     zstr_sendx (cm_server, "CONNECT", endpoint, NULL);
     zstr_sendx (cm_server, "PRODUCER", FTY_PROTO_STREAM_METRICS, NULL);
@@ -494,9 +493,10 @@ fty_mc_server_test (bool verbose)
     //     other option is to not test in second precision,
     //     which will increase the time of make check far beyond
     //     what developers would accept ;-)
+    //     (in order to use shm, all timer for this test as set to x*10)
     {
         int64_t now_ms = zclock_time ();
-        int64_t sl = 5000 - (now_ms % 5000);
+        int64_t sl = 50000 - (now_ms % 50000);
         zclock_sleep (sl);
 
         log_debug ("now_ms=%" PRIi64 ", sl=%" PRIi64 ", now=%" PRIi64,
@@ -505,6 +505,7 @@ fty_mc_server_test (bool verbose)
                    zclock_time ());
     }
 
+    zclock_sleep(1000);
     int64_t TEST_START_MS = zclock_time ();
     log_debug ("TEST_START_MS=%" PRIi64, TEST_START_MS);
     zmsg_t *msg;
@@ -517,8 +518,8 @@ fty_mc_server_test (bool verbose)
 //            "100",
 //            "UNIT");
 //    mlm_client_send (producer, "realpower.default@DEV1", &msg);
-    assert(fty::shm::write_metric("DEV1", "realpower.default","100", "UNIT", 10) == 0);
-
+    assert(fty::shm::write_metric("DEV1", "realpower.default","100", "UNIT", 20) == 0);
+    zclock_sleep(2000);
     // empty element_src
 //    msg = fty_proto_encode_metric (
 //            NULL,
@@ -529,8 +530,8 @@ fty_mc_server_test (bool verbose)
 //            "20",
 //            "UNIT");
 //    mlm_client_send (producer, "realpower.default@", &msg);
-    fty::shm::write_metric("","realpower.default", "20", "UNIT", 10);
-
+    fty::shm::write_metric("","realpower.default", "20", "UNIT", 2);
+    zclock_sleep(2000);
 //    msg = fty_proto_encode_metric (
 //            NULL,
 //            time (NULL),
@@ -540,8 +541,8 @@ fty_mc_server_test (bool verbose)
 //            "nan",
 //            "UNIT");
 //    mlm_client_send (producer, "realpower.default@DEV1", &msg);
-    fty::shm::write_metric("DEV1", "realpower.default", "nan", "UNIT", 10);
-
+    fty::shm::write_metric("DEV1", "realpower.default", "nan", "UNIT", 2);
+    zclock_sleep(2000);
 //    msg = fty_proto_encode_metric (
 //            NULL,
 //            time (NULL),
@@ -551,9 +552,12 @@ fty_mc_server_test (bool verbose)
 //            "50",
 //            "UNIT");
 //    mlm_client_send (producer, "realpower.default@DEV1", &msg);
-    fty::shm::write_metric("DEV1", "realpower.default", "50", "UNIT", 10);
-    // T+1100ms
-    zclock_sleep (5000 - (zclock_time () - TEST_START_MS) - 3900);
+    fty::shm::write_metric("DEV1", "realpower.default", "50", "UNIT", 2);
+    zclock_sleep(2000);
+
+    // T+11000ms
+    zclock_sleep (50000 - (zclock_time () - TEST_START_MS) - 39000);
+
     // now we should have first 1s min/max/avg values published - from polling
     for (int i = 0; i != 3; i++) {
         fty_proto_t *bmsg = NULL;
@@ -564,17 +568,17 @@ fty_mc_server_test (bool verbose)
 
         const char *type = fty_proto_aux_string (bmsg, AGENT_CM_TYPE, "");
         if (streq (type, "min")) {
-            assert (streq (mlm_client_subject (consumer_1s), "realpower.default_min_1s@DEV1"));
+            assert (streq (mlm_client_subject (consumer_1s), "realpower.default_min_10s@DEV1"));
             assert (streq (fty_proto_value (bmsg), "50.00"));
         }
         else
         if (streq (type, "max")) {
-            assert (streq (mlm_client_subject (consumer_1s), "realpower.default_max_1s@DEV1"));
+            assert (streq (mlm_client_subject (consumer_1s), "realpower.default_max_10s@DEV1"));
             assert (streq (fty_proto_value (bmsg), "100"));
         }
         else
         if (streq (type, "arithmetic_mean")) {
-            assert (streq (mlm_client_subject (consumer_1s), "realpower.default_arithmetic_mean_1s@DEV1"));
+            assert (streq (mlm_client_subject (consumer_1s), "realpower.default_arithmetic_mean_10s@DEV1"));
             assert (streq (fty_proto_value (bmsg), "75.00"));
         }
         else
@@ -582,9 +586,10 @@ fty_mc_server_test (bool verbose)
 
         fty_proto_destroy (&bmsg);
     }
-    // goto T+3100ms
-    zclock_sleep (5000 - (zclock_time () - TEST_START_MS) - 1900);
-    // send some 1s min/max to differentiate the 1s and 5s min/max later on
+
+    // goto T+31000ms
+    zclock_sleep (50000 - (zclock_time () - TEST_START_MS) - 19000);
+    // send some 10s min/max to differentiate the 10s and 50s min/max later on
 //    msg = fty_proto_encode_metric (
 //            NULL,
 //            time (NULL),
@@ -594,7 +599,8 @@ fty_mc_server_test (bool verbose)
 //            "42",
 //            "UNIT");
 //    mlm_client_send (producer, "realpower.default@DEV1", &msg);
-    fty::shm::write_metric("DEV1", "realpower.default", "42", "UNIT", 10);
+    fty::shm::write_metric("DEV1", "realpower.default", "42", "UNIT", 2);
+    zclock_sleep(2000);
 //    msg = fty_proto_encode_metric (
 //            NULL,
 //            time (NULL),
@@ -604,10 +610,11 @@ fty_mc_server_test (bool verbose)
 //            "242",
 //            "UNIT");
 //    mlm_client_send (producer, "realpower.default@DEV1", &msg);
-    fty::shm::write_metric("DEV1", "realpower.default", "242", "UNIT", 10);
+    fty::shm::write_metric("DEV1", "realpower.default", "242", "UNIT", 2);
+    zclock_sleep(2000);
 
-    // goto T+4600
-    zclock_sleep (5000 - (zclock_time () - TEST_START_MS) - 400);
+    // goto T+46000
+    zclock_sleep (50000 - (zclock_time () - TEST_START_MS) - 4000);
     // consume sent min/max/avg - the unit test for 1s have
     // there are 3 mins, 3 max and 3 arithmetic_mean published so far
     for (int i = 0; i != 9; i++)
@@ -633,9 +640,9 @@ fty_mc_server_test (bool verbose)
         */
         fty_proto_destroy (&bmsg);
     }
-    // T+5100s
-    zclock_sleep (5000 - (zclock_time () - TEST_START_MS) + 100);
-    // now we have 2 times 1s and 5s min/max as well
+    // T+51000s
+    zclock_sleep (50000 - (zclock_time () - TEST_START_MS) + 1000);
+    // now we have 2 times 10s and 50s min/max as well
     for (int i = 0; i != 3; i++) {
         fty_proto_t *bmsg = NULL;
         msg = mlm_client_recv (consumer_5s);
@@ -648,17 +655,17 @@ fty_mc_server_test (bool verbose)
         const char *type = fty_proto_aux_string (bmsg, AGENT_CM_TYPE, "");
 
         if (streq (type, "min")) {
-            assert (streq (mlm_client_subject (consumer_5s), "realpower.default_min_5s@DEV1"));
+            assert (streq (mlm_client_subject (consumer_5s), "realpower.default_min_50s@DEV1"));
             assert (streq (fty_proto_value (bmsg), "42.00"));
         }
         else
         if (streq (type, "max")) {
-            assert (streq (mlm_client_subject (consumer_5s), "realpower.default_max_5s@DEV1"));
+            assert (streq (mlm_client_subject (consumer_5s), "realpower.default_max_50s@DEV1"));
             assert (streq (fty_proto_value (bmsg), "242.00"));
         }
         else
         if (streq (type, "arithmetic_mean")) {
-            assert (streq (mlm_client_subject (consumer_5s), "realpower.default_arithmetic_mean_5s@DEV1"));
+            assert (streq (mlm_client_subject (consumer_5s), "realpower.default_arithmetic_mean_50s@DEV1"));
             // (100 + 50 + 42 + 242) / 5
             log_debug ("value=%s", fty_proto_value (bmsg));
             assert (streq (fty_proto_value (bmsg), "108.50"));
@@ -669,13 +676,13 @@ fty_mc_server_test (bool verbose)
         fty_proto_destroy (&bmsg);
     }
     zactor_destroy (&cm_server);
-    zclock_sleep (500);
+    zclock_sleep (5000);
 
     // to prevent false positives in memcheck - there should not be any messages in a broker
     // on the end of the run
     zpoller_t *poller = zpoller_new (mlm_client_msgpipe (consumer_5s), mlm_client_msgpipe (consumer_1s), NULL);
     while (!zsys_interrupted) {
-        void *which = zpoller_wait (poller, 500);
+        void *which = zpoller_wait (poller, 5000);
 
         if (!which)
             break;

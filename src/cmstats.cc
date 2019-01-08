@@ -233,6 +233,7 @@ cmstats_put (
         fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (stat_msg)); // insert value as string into string
         fty_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", addr_fun);
         fty_proto_aux_insert (stat_msg, AGENT_CM_STEP, "%" PRIu32, step);
+        fty_proto_aux_insert (stat_msg, AGENT_CM_LASTTS, "%" PRIu64, fty_proto_time(bmsg));
         fty_proto_set_ttl (stat_msg, 2 * step);
         zhashx_insert (self->stats, key, stat_msg);
         zstr_free (&key);
@@ -244,6 +245,10 @@ cmstats_put (
     // there is already some value
     // so check if it's not already older than we need
     uint64_t metric_time_s = fty_proto_time (stat_msg);
+    uint64_t new_metric_time_s = fty_proto_time(bmsg);
+    uint64_t last_metric_time_s =  fty_proto_aux_number (stat_msg, AGENT_CM_LASTTS, 0);
+    if(new_metric_time_s <= last_metric_time_s)
+      return NULL;
 
     // it is, return the stat value and "restart" the computation
     if ( ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) ) {
@@ -254,12 +259,13 @@ cmstats_put (
         // to compute the statistics for the next interval
         fty_proto_set_time (stat_msg, metric_time_new_s);
         fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
-        fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (stat_msg));
+        fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (bmsg));
+        fty_proto_aux_insert (stat_msg, AGENT_CM_LASTTS, "%" PRIu64, new_metric_time_s);
 
         fty_proto_set_value (stat_msg, "%s", fty_proto_value (bmsg));
         return ret;
     }
-
+    
     bool value_accepted = false;
     // if we're inside the interval, simply do the computation
     if (streq (addr_fun, "min"))
@@ -279,6 +285,7 @@ cmstats_put (
         fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "%" PRIu64,
             fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0) + 1
         );
+        fty_proto_aux_insert (stat_msg, AGENT_CM_LASTTS, "%" PRIu64, new_metric_time_s);
     }
 
     return NULL;
@@ -361,7 +368,8 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client)
 
             log_debug ("cmstats:\tPublishing message wiht subject=%s", key);
             fty_proto_print (ret);
-
+            
+            fty::shm::write_metric(ret);
             zmsg_t *msg = fty_proto_encode (&ret);
             int r = mlm_client_send (client, key, &msg);
             if ( r == -1 ) {
@@ -545,6 +553,7 @@ cmstats_test (bool verbose)
     assert (!stats);
     fty_proto_destroy (&bmsg);
 
+    zclock_sleep(50);
     //  1.2 second metric (inside interval) in
     msg = fty_proto_encode_metric (
             NULL,
