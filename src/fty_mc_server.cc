@@ -90,6 +90,114 @@ cm_new (const char* name)
     return self;
 }
 
+void s_handle_metric(fty_proto_t *bmsg, cm_t *self, bool shm=false)
+{
+    // get rid of messages with empty or null name
+    if (fty_proto_name (bmsg) == NULL || streq (fty_proto_name (bmsg), ""))
+    {
+        if(shm) {
+            log_warning ("%s: invalid \'name\' = (%s), \tfrom shm",
+                    self->name,
+                    fty_proto_name (bmsg) ?  fty_proto_name (bmsg) : "null");
+        } else {
+            log_warning ("%s: invalid \'name\' = (%s), \tsubject=%s, sender=%s",
+                    self->name,
+                    fty_proto_name (bmsg) ?  fty_proto_name (bmsg) : "null",
+                    mlm_client_subject (self->client),
+                    mlm_client_sender (self->client));
+        }
+        return;
+    }
+
+    // sometimes we do have nan in values, report if we get something like that on METRICS
+    double value = atof (fty_proto_value (bmsg));
+    if (isnan (value)) {
+        if(shm) {
+            log_warning("%s:\tisnan ('%s') from shm",self->name, fty_proto_value(bmsg));
+        } else {
+            log_warning ("%s:\tisnan ('%lf'), subject='%s', sender='%s'",
+                    self->name,
+                    value,
+                    mlm_client_subject (self->client),
+                    mlm_client_sender (self->client)
+                    );
+        }
+        return;
+    }
+
+    for (uint32_t *step_p = cmsteps_first (self->steps);
+            step_p != NULL;
+            step_p = cmsteps_next (self->steps))
+    {
+        for (const char *type = (const char*) zlist_first (self->types);
+                type != NULL;
+                type = (const char*) zlist_next (self->types))
+        {
+            const char *step = (const char*) cmsteps_cursor (self->steps);
+            fty_proto_t *stat_msg = cmstats_put (self->stats, type, step, *step_p, bmsg);
+            if (stat_msg) {
+                char *subject = zsys_sprintf ("%s@%s",
+                        fty_proto_type (stat_msg),
+                        fty_proto_name (stat_msg));
+                assert (subject);
+
+                fty::shm::write_metric(stat_msg);
+                zmsg_t *msg = fty_proto_encode (&stat_msg);
+                int r = mlm_client_send (self->client, subject, &msg);
+                if ( r == -1 ) {
+                    log_error ("%s:\tCannot publish statistics", self->name);
+                }
+                zstr_free (&subject);
+            }
+        }
+    }
+}
+
+
+void
+fty_metric_compute_metric_pull (zsock_t *pipe, void* args)
+{
+   zpoller_t *poller = zpoller_new (pipe, NULL);
+  zsock_signal (pipe, 0);
+
+  cm_t *self = (cm_t*) args;
+  uint64_t timeout = fty_get_polling_interval() * 1000;
+  while (!zsys_interrupted) {
+      void *which = zpoller_wait (poller, timeout);
+      if (which == NULL) {
+        if (zpoller_terminated (poller) || zsys_interrupted) {
+            break;
+        }
+        if (zpoller_expired (poller)) {
+          fty::shm::shmMetrics result;
+          log_debug("read metrics !");
+          fty::shm::read_metrics(FTY_SHM_METRIC_TYPE, ".*", "^realpower\\.default.*|.*temperature.*|.*humidity.*",  result);
+          log_debug("metric reads : %d", result.size());
+          for (auto &element : result) {
+            s_handle_metric(element, self, true);
+          }
+        }
+      }
+      else if (which == pipe) {
+      zmsg_t *message = zmsg_recv (pipe);
+      if(message) {
+        char *cmd = zmsg_popstr (message);
+        if (cmd) {
+          if(streq (cmd, "$TERM")) {
+            zstr_free(&cmd);
+            zmsg_destroy(&message);
+            break;
+          }
+          zstr_free(&cmd);
+        }
+        zmsg_destroy(&message);
+      }
+    }
+      timeout = fty_get_polling_interval() * 1000;
+  }
+  zpoller_destroy(&poller);
+}
+
 //  --------------------------------------------------------------------------
 //  fty_mc_server actor
 
@@ -104,6 +212,7 @@ fty_mc_server (zsock_t *pipe, void *args)
     // do not forget to send a signal to actor :)
     zsock_signal (pipe, 0);
 
+    zactor_t *metric_pull = zactor_new (fty_metric_compute_metric_pull, (void*) self);
     // Time in [ms] when last cmstats_poll was called
     // -1 means it was never called yet
     int64_t last_poll_ms = -1;
@@ -308,57 +417,7 @@ fty_mc_server (zsock_t *pipe, void *args)
         // update statistics for all steps and types
         // All statistics are computed for "left side of the interval"
         if ( fty_proto_id (bmsg) == FTY_PROTO_METRIC ) {
-
-            // get rid of messages with empty or null name
-            if (fty_proto_name (bmsg) == NULL || streq (fty_proto_name (bmsg), ""))
-            {
-                log_warning ("%s: invalid \'name\' = (%s), \tsubject=%s, sender=%s",
-                        self->name,
-                        fty_proto_name (bmsg) ?  fty_proto_name (bmsg) : "null",
-                        mlm_client_subject (self->client),
-                        mlm_client_sender (self->client));
-                fty_proto_destroy(&bmsg);
-                continue;
-            }
-
-            // sometimes we do have nan in values, report if we get something like that on METRICS
-            double value = atof (fty_proto_value (bmsg));
-            if (isnan (value)) {
-                log_warning ("%s:\tisnan ('%lf'), subject='%s', sender='%s'",
-                        self->name,
-                        value,
-                        mlm_client_subject (self->client),
-                        mlm_client_sender (self->client)
-                        );
-                fty_proto_destroy (&bmsg);
-                continue;
-            }
-
-            for (uint32_t *step_p = cmsteps_first (self->steps);
-                    step_p != NULL;
-                    step_p = cmsteps_next (self->steps))
-            {
-                for (const char *type = (const char*) zlist_first (self->types);
-                        type != NULL;
-                        type = (const char*) zlist_next (self->types))
-                {
-                    const char *step = (const char*) cmsteps_cursor (self->steps);
-                    fty_proto_t *stat_msg = cmstats_put (self->stats, type, step, *step_p, bmsg);
-                    if (stat_msg) {
-                        char *subject = zsys_sprintf ("%s@%s",
-                                fty_proto_type (stat_msg),
-                                fty_proto_name (stat_msg));
-                        assert (subject);
-
-                        zmsg_t *msg = fty_proto_encode (&stat_msg);
-                        int r = mlm_client_send (self->client, subject, &msg);
-                        if ( r == -1 ) {
-                            log_error ("%s:\tCannot publish statistics", self->name);
-                        }
-                        zstr_free (&subject);
-                    }
-                }
-            }
+            s_handle_metric(bmsg,self);
             fty_proto_destroy (&bmsg);
             continue;
         }
@@ -379,6 +438,7 @@ fty_mc_server (zsock_t *pipe, void *args)
             log_info ("%s:\tSaved succesfully '%s'", self->name, self->filename);
     }
 
+    zactor_destroy(&metric_pull);
     cm_destroy (&self);
     zpoller_destroy (&poller);
 }
@@ -395,16 +455,19 @@ fty_mc_server_test (bool verbose)
 
     //  @selftest
     unlink ("src/state.zpl");
+    
+    fty_shm_set_default_polling_interval(5);
+    fty_shm_set_test_dir("src/selftest-rw");
 
     static const char *endpoint = "inproc://cm-server-test";
 
     // create broker
-    zactor_t *server = zactor_new (mlm_server, "Malamute");
+    zactor_t *server = zactor_new (mlm_server, (void*)"Malamute");
     zstr_sendx (server, "BIND", endpoint, NULL);
 
-    mlm_client_t *producer = mlm_client_new ();
-    mlm_client_connect (producer, endpoint, 5000, "publisher");
-    mlm_client_set_producer (producer, FTY_PROTO_STREAM_METRICS);
+//    mlm_client_t *producer = mlm_client_new ();
+//    mlm_client_connect (producer, endpoint, 5000, "publisher");
+//    mlm_client_set_producer (producer, FTY_PROTO_STREAM_METRICS);
 
     // 1s consumer
     mlm_client_t *consumer_1s = mlm_client_new ();
@@ -416,14 +479,14 @@ fty_mc_server_test (bool verbose)
     mlm_client_connect (consumer_5s, endpoint, 5000, "consumer_5s");
     mlm_client_set_consumer (consumer_5s, FTY_PROTO_STREAM_METRICS, ".*(min|max|arithmetic_mean)_5s.*");
 
-    zactor_t *cm_server = zactor_new (fty_mc_server, "fty-mc-server");
+    zactor_t *cm_server = zactor_new (fty_mc_server, (void*)"fty-mc-server");
 
     zstr_sendx (cm_server, "TYPES", "min", "max", "arithmetic_mean", NULL);
     zstr_sendx (cm_server, "STEPS", "1s", "5s", NULL);
     zstr_sendx (cm_server, "DIR", "src", NULL);
     zstr_sendx (cm_server, "CONNECT", endpoint, NULL);
     zstr_sendx (cm_server, "PRODUCER", FTY_PROTO_STREAM_METRICS, NULL);
-    zstr_sendx (cm_server, "CONSUMER", FTY_PROTO_STREAM_METRICS, ".*", NULL);
+    //zstr_sendx (cm_server, "CONSUMER", FTY_PROTO_STREAM_METRICS, ".*", NULL);
     zclock_sleep (500);
 
     //XXX: the test is sensitive on timing!!!
@@ -444,47 +507,51 @@ fty_mc_server_test (bool verbose)
 
     int64_t TEST_START_MS = zclock_time ();
     log_debug ("TEST_START_MS=%"PRIi64, TEST_START_MS);
-
-    zmsg_t *msg = fty_proto_encode_metric (
-            NULL,
-            time (NULL),
-            10,
-            "realpower.default",
-            "DEV1",
-            "100",
-            "UNIT");
-    mlm_client_send (producer, "realpower.default@DEV1", &msg);
+    zmsg_t *msg;
+//    zmsg_t *msg = fty_proto_encode_metric (
+//            NULL,
+//            time (NULL),
+//            10,
+//            "realpower.default",
+//            "DEV1",
+//            "100",
+//            "UNIT");
+//    mlm_client_send (producer, "realpower.default@DEV1", &msg);
+    fty::shm::write_metric("DEV1", "realpower.default","100", "UNIT", 10);
 
     // empty element_src
-    msg = fty_proto_encode_metric (
-            NULL,
-            time (NULL),
-            10,
-            "realpower.default",
-            "",
-            "20",
-            "UNIT");
-    mlm_client_send (producer, "realpower.default@", &msg);
+//    msg = fty_proto_encode_metric (
+//            NULL,
+//            time (NULL),
+//            10,
+//            "realpower.default",
+//            "",
+//            "20",
+//            "UNIT");
+//    mlm_client_send (producer, "realpower.default@", &msg);
+    fty::shm::write_metric("","realpower.default", "20", "UNIT", 10);
 
-    msg = fty_proto_encode_metric (
-            NULL,
-            time (NULL),
-            10,
-            "realpower.default",
-            "DEV1",
-            "nan",
-            "UNIT");
-    mlm_client_send (producer, "realpower.default@DEV1", &msg);
+//    msg = fty_proto_encode_metric (
+//            NULL,
+//            time (NULL),
+//            10,
+//            "realpower.default",
+//            "DEV1",
+//            "nan",
+//            "UNIT");
+//    mlm_client_send (producer, "realpower.default@DEV1", &msg);
+    fty::shm::write_metric("DEV1", "realpower.default", "nan", "UNIT", 10);
 
-    msg = fty_proto_encode_metric (
-            NULL,
-            time (NULL),
-            10,
-            "realpower.default",
-            "DEV1",
-            "50",
-            "UNIT");
-    mlm_client_send (producer, "realpower.default@DEV1", &msg);
+//    msg = fty_proto_encode_metric (
+//            NULL,
+//            time (NULL),
+//            10,
+//            "realpower.default",
+//            "DEV1",
+//            "50",
+//            "UNIT");
+//    mlm_client_send (producer, "realpower.default@DEV1", &msg);
+    fty::shm::write_metric("DEV1", "realpower.default", "50", "UNIT", 10);
 
     // T+1100ms
     zclock_sleep (5000 - (zclock_time () - TEST_START_MS) - 3900);
@@ -522,24 +589,26 @@ fty_mc_server_test (bool verbose)
     // goto T+3100ms
     zclock_sleep (5000 - (zclock_time () - TEST_START_MS) - 1900);
     // send some 1s min/max to differentiate the 1s and 5s min/max later on
-    msg = fty_proto_encode_metric (
-            NULL,
-            time (NULL),
-            10,
-            "realpower.default",
-            "DEV1",
-            "42",
-            "UNIT");
-    mlm_client_send (producer, "realpower.default@DEV1", &msg);
-    msg = fty_proto_encode_metric (
-            NULL,
-            time (NULL),
-            10,
-            "realpower.default",
-            "DEV1",
-            "242",
-            "UNIT");
-    mlm_client_send (producer, "realpower.default@DEV1", &msg);
+//    msg = fty_proto_encode_metric (
+//            NULL,
+//            time (NULL),
+//            10,
+//            "realpower.default",
+//            "DEV1",
+//            "42",
+//            "UNIT");
+//    mlm_client_send (producer, "realpower.default@DEV1", &msg);
+    fty::shm::write_metric("DEV1", "realpower.default", "42", "UNIT", 10);
+//    msg = fty_proto_encode_metric (
+//            NULL,
+//            time (NULL),
+//            10,
+//            "realpower.default",
+//            "DEV1",
+//            "242",
+//            "UNIT");
+//    mlm_client_send (producer, "realpower.default@DEV1", &msg);
+    fty::shm::write_metric("DEV1", "realpower.default", "242", "UNIT", 10);
 
     // goto T+4600
     zclock_sleep (5000 - (zclock_time () - TEST_START_MS) - 400);
@@ -630,9 +699,10 @@ fty_mc_server_test (bool verbose)
     zactor_destroy (&cm_server);
     mlm_client_destroy (&consumer_5s);
     mlm_client_destroy (&consumer_1s);
-    mlm_client_destroy (&producer);
+//    mlm_client_destroy (&producer);
     zactor_destroy (&server);
 
+    fty_shm_delete_test_dir();
     assert (zfile_exists ("src/state.zpl"));
     unlink ("src/state.zpl");
     //  @end
