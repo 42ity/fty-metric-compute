@@ -28,6 +28,7 @@
 
 #include "fty_metric_compute_classes.h"
 #include "fty_metric_compute.h"
+#include <errno.h>
 
 
 typedef void (compute_fn) (const fty_proto_t *bmsg, fty_proto_t *stat_msg);
@@ -49,6 +50,25 @@ s_duplicator (const void *self)
     return (void*) fty_proto_dup ((fty_proto_t*) self);
 }
 
+static double
+safe_atof (const char *str)
+{
+    char *endptr;
+    errno = 0;
+    double ret = strtod (str, &endptr);
+    // we could not process whole str
+    if (ret == 0.0 && endptr != NULL && endptr[0] != '\0') {
+        log_error ("strtod received %s with dangling non-number argument '%s'", str, endptr);
+        //ret = "NAN";
+    }
+    // overflow or underflow
+    if (errno == ERANGE) {
+        log_error ("strtod experienced over/underflow when converting %s", str);
+        //ret = "NAN";
+    }
+
+    return ret;
+}
 
 // find minimum value
 // \param bmsg - input new metric
@@ -58,9 +78,9 @@ s_min (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
 {
     assert (bmsg);
     assert (stat_msg);
-    double bmsg_value = atof (fty_proto_value ((fty_proto_t*) bmsg));
+    double bmsg_value = safe_atof (fty_proto_value ((fty_proto_t*) bmsg));
     uint64_t count = fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
-    double stat_value = atof (fty_proto_value (stat_msg));
+    double stat_value = safe_atof (fty_proto_value (stat_msg));
 
     if (isnan (stat_value)
     ||  count == 0
@@ -79,9 +99,9 @@ s_max (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
 {
     assert (bmsg);
     assert (stat_msg);
-    double bmsg_value = atof (fty_proto_value ((fty_proto_t*) bmsg));
+    double bmsg_value = safe_atof (fty_proto_value ((fty_proto_t*) bmsg));
     uint64_t count = fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
-    double stat_value = atof (fty_proto_value (stat_msg));
+    double stat_value = safe_atof (fty_proto_value (stat_msg));
 
     if (isnan (stat_value)
     ||  count == 0
@@ -100,9 +120,10 @@ s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
 {
     assert (bmsg);
     assert (stat_msg);
-    double value = atof (fty_proto_value ((fty_proto_t*) bmsg));
+    double value = safe_atof (fty_proto_value ((fty_proto_t*) bmsg));
     uint64_t count = fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
-    double sum = atof (fty_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"));
+    //IDEA: 0 here could mess things up
+    double sum = safe_atof (fty_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"));
 
     if (isnan (value) || isnan (sum)) {
         log_warning ("s_arithmetic_mean: isnan value(%s) or sum (%s) for %s@%s, skipping",
@@ -120,6 +141,7 @@ s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
     else
         sum += value;
 
+    //IDEA: what implicit conversions happen here?
     double avg = (sum / (count+1));
     if (isnan (avg)) {
         log_error ("s_arithmetic_mean: isnan (avg) %f / (%"PRIu64 " + 1), for %s@%s, skipping",
@@ -219,6 +241,7 @@ cmstats_put (
             fty_proto_name (bmsg));
     assert (r != -1);   // make gcc @ rhel happy
 
+    // IDEA: if runtime deallocated this, we start from the beginning
     fty_proto_t *stat_msg = (fty_proto_t*) zhashx_lookup (self->stats, key);
 
     // handle the first insert
@@ -353,6 +376,7 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client)
             // Yes, it should!
             fty_proto_t *ret = fty_proto_dup (stat_msg);
 
+            // IDEA: is this a good idea?
             fty_proto_set_time (stat_msg, metric_time_new_s);
             fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "0"); // As we do not receive any message, start from ZERO
             fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "0");  // As we do not receive any message, start from ZERO
@@ -393,6 +417,7 @@ cmstats_save (cmstats_t *self, const char *filename)
         i++;
         const char* metric_topic = (const char*) zhashx_cursor (self->stats);
 
+        // TODO: rewrite this with fty_proto_new_zpl - format should stay the same (up to permutation)
         zconfig_t *item = zconfig_new (asset_key, root);
         zconfig_put (item, "metric_topic", metric_topic);
         zconfig_put (item, "type", fty_proto_type (bmsg));
