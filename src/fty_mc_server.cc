@@ -233,7 +233,7 @@ fty_mc_server (zsock_t *pipe, void *args)
             // length_of_the_minimal_interval - part_of_interval_already_passed
             interval_ms = (cmsteps_gcd (self->steps) - (now_s % cmsteps_gcd (self->steps))) * 1000;
 
-            log_debug ("%s:\tnow=%"PRIu64 "s, cmsteps_gcd=%"PRIu32 "s, interval=%dms",
+            log_debug ("%s:\tnow=%" PRIu64 "s, cmsteps_gcd=%" PRIu32 "s, interval=%dms",
                        self->name,
                        now_s,
                        cmsteps_gcd (self->steps),
@@ -499,14 +499,14 @@ fty_mc_server_test (bool verbose)
         int64_t sl = 5000 - (now_ms % 5000);
         zclock_sleep (sl);
 
-        log_debug ("now_ms=%"PRIi64 ", sl=%"PRIi64 ", now=%"PRIi64,
+        log_debug ("now_ms=%" PRIi64 ", sl=%" PRIi64 ", now=%" PRIi64,
                    now_ms,
                    sl,
                    zclock_time ());
     }
 
     int64_t TEST_START_MS = zclock_time ();
-    log_debug ("TEST_START_MS=%"PRIi64, TEST_START_MS);
+    log_debug ("TEST_START_MS=%" PRIi64, TEST_START_MS);
     zmsg_t *msg;
 //    zmsg_t *msg = fty_proto_encode_metric (
 //            NULL,
@@ -517,7 +517,7 @@ fty_mc_server_test (bool verbose)
 //            "100",
 //            "UNIT");
 //    mlm_client_send (producer, "realpower.default@DEV1", &msg);
-    fty::shm::write_metric("DEV1", "realpower.default","100", "UNIT", 10);
+    assert(fty::shm::write_metric("DEV1", "realpower.default","100", "UNIT", 10) == 0);
 
     // empty element_src
 //    msg = fty_proto_encode_metric (
@@ -552,16 +552,13 @@ fty_mc_server_test (bool verbose)
 //            "UNIT");
 //    mlm_client_send (producer, "realpower.default@DEV1", &msg);
     fty::shm::write_metric("DEV1", "realpower.default", "50", "UNIT", 10);
-
     // T+1100ms
     zclock_sleep (5000 - (zclock_time () - TEST_START_MS) - 3900);
-
     // now we should have first 1s min/max/avg values published - from polling
     for (int i = 0; i != 3; i++) {
         fty_proto_t *bmsg = NULL;
         msg = mlm_client_recv (consumer_1s);
         bmsg = fty_proto_decode (&msg);
-
         log_debug ("subject=%s", mlm_client_subject (consumer_1s));
         fty_proto_print (bmsg);
 
@@ -585,7 +582,6 @@ fty_mc_server_test (bool verbose)
 
         fty_proto_destroy (&bmsg);
     }
-
     // goto T+3100ms
     zclock_sleep (5000 - (zclock_time () - TEST_START_MS) - 1900);
     // send some 1s min/max to differentiate the 1s and 5s min/max later on
@@ -637,17 +633,15 @@ fty_mc_server_test (bool verbose)
         */
         fty_proto_destroy (&bmsg);
     }
-
     // T+5100s
     zclock_sleep (5000 - (zclock_time () - TEST_START_MS) + 100);
-
     // now we have 2 times 1s and 5s min/max as well
     for (int i = 0; i != 3; i++) {
         fty_proto_t *bmsg = NULL;
         msg = mlm_client_recv (consumer_5s);
         bmsg = fty_proto_decode (&msg);
 
-        log_debug ("zclock_time=%"PRIi64 "ms", zclock_time ());
+        log_debug ("zclock_time=%" PRIi64 "ms", zclock_time ());
         log_debug ("subject=%s", mlm_client_subject (consumer_5s));
         fty_proto_print (bmsg);
 

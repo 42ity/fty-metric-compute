@@ -122,7 +122,7 @@ s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
 
     double avg = (sum / (count+1));
     if (isnan (avg)) {
-        log_error ("s_arithmetic_mean: isnan (avg) %f / (%"PRIu64 " + 1), for %s@%s, skipping",
+        log_error ("s_arithmetic_mean: isnan (avg) %f / (%" PRIu64 " + 1), for %s@%s, skipping",
             sum,
             count,
             fty_proto_type ((fty_proto_t*) bmsg),
@@ -232,7 +232,7 @@ cmstats_put (
         fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (stat_msg)); // insert value as string into string
         fty_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", addr_fun);
-        fty_proto_aux_insert (stat_msg, AGENT_CM_STEP, "%"PRIu32, step);
+        fty_proto_aux_insert (stat_msg, AGENT_CM_STEP, "%" PRIu32, step);
         fty_proto_set_ttl (stat_msg, 2 * step);
         zhashx_insert (self->stats, key, stat_msg);
         zstr_free (&key);
@@ -276,7 +276,7 @@ cmstats_put (
 
     // increase the counter
     if (value_accepted) {
-        fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "%"PRIu64,
+        fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "%" PRIu64,
             fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0) + 1
         );
     }
@@ -340,7 +340,7 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client)
         // What SHOULD be an assigned time for the NEW stat metric (in our case it is a left margin in the NEW interval)
         uint64_t metric_time_new_s = (now_ms - (now_ms % (step * 1000))) / 1000;
 
-        log_debug ("cmstats_poll: key=%s\n\tnow_ms=%"PRIu64 ", metric_time_new_s=%"PRIu64 ", metric_time_s=%"PRIu64 ", (now_ms - (metric_time_s * 1000))=%" PRIu64 "s, step*1000=%"PRIu32 "ms",
+        log_debug ("cmstats_poll: key=%s\n\tnow_ms=%" PRIu64 ", metric_time_new_s=%" PRIu64 ", metric_time_s=%" PRIu64 ", (now_ms - (metric_time_s * 1000))=%" PRIu64 "s, step*1000=%" PRIu32 "ms",
             key,
             now_ms,
             metric_time_new_s,
@@ -399,7 +399,7 @@ cmstats_save (cmstats_t *self, const char *filename)
         zconfig_put (item, "element_src", fty_proto_name (bmsg));
         zconfig_put (item, "value", fty_proto_value (bmsg));
         zconfig_put (item, "unit", fty_proto_unit (bmsg));
-        zconfig_putf (item, "ttl", "%"PRIu32, fty_proto_ttl (bmsg));
+        zconfig_putf (item, "ttl", "%" PRIu32, fty_proto_ttl (bmsg));
 
         zhash_t *aux = fty_proto_aux (bmsg);
         for (const char *aux_value = (const char*) zhash_first (aux);
@@ -518,7 +518,7 @@ cmstats_test (bool verbose)
         int64_t sl = 1000 - (now_ms % 1000);
         zclock_sleep (sl);
 
-        log_debug ("now_ms=%"PRIi64 ", sl=%"PRIi64 ", now=%"PRIi64,
+        log_debug ("now_ms=%" PRIi64 ", sl=%" PRIi64 ", now=%" PRIi64,
                    now_ms,
                    sl,
                    zclock_time ());
