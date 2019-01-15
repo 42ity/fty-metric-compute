@@ -28,6 +28,9 @@
 
 #include "fty_metric_compute_classes.h"
 #include "fty_metric_compute.h"
+#include <mutex>
+
+std::mutex g_cm_mutex;
 
 // TODO: move to class sometime
 // It is a "CM" entity
@@ -170,10 +173,14 @@ fty_metric_compute_metric_pull (zsock_t *pipe, void* args)
         }
         if (zpoller_expired (poller)) {
           fty::shm::shmMetrics result;
-          fty::shm::read_metrics(FTY_SHM_METRIC_TYPE, ".*", "^realpower\\.default.*|.*temperature.*|.*humidity.*",  result);
+          //All metrics realpower.default or temperature, or humidity who are not already produce by metric compute
+          const std::string pattern = "(^realpower\\.default|.*temperature|.*humidity)((?!_arithmetic_mean|_max_|_min_).)*";
+          fty::shm::read_metrics(FTY_SHM_METRIC_TYPE, ".*", pattern,  result);
           log_debug("number of metrics reads : %d", result.size());
           for (auto &element : result) {
+            g_cm_mutex.lock();
             s_handle_metric(element, self, true);
+            g_cm_mutex.unlock();
           }
         }
       }
@@ -211,7 +218,7 @@ fty_mc_server (zsock_t *pipe, void *args)
     // do not forget to send a signal to actor :)
     zsock_signal (pipe, 0);
 
-    zactor_t *metric_pull = zactor_new (fty_metric_compute_metric_pull, (void*) self);
+    zactor_t *metric_pull;
     // Time in [ms] when last cmstats_poll was called
     // -1 means it was never called yet
     int64_t last_poll_ms = -1;
@@ -221,6 +228,7 @@ fty_mc_server (zsock_t *pipe, void *args)
         // If steps where not defined ( cmsteps_gcd == 0 ) then nothing to publish,
         // so, we can wait forever (-1) for first message to come
         // in [ms]
+        g_cm_mutex.lock();
         int interval_ms = -1;
         if (cmsteps_gcd (self->steps) != 0) {
             // So, some steps where defined
@@ -239,6 +247,7 @@ fty_mc_server (zsock_t *pipe, void *args)
                        interval_ms
             );
         }
+        g_cm_mutex.unlock();
 
         // wait for interval left
         void *which = zpoller_wait (poller, interval_ms);
@@ -254,6 +263,7 @@ fty_mc_server (zsock_t *pipe, void *args)
         //  at moment X4, but in X3 some message had already come -> so zpoller_expired(poller) == false
         //
         // -NOW----X1------X2---X3--X4-----
+        g_cm_mutex.lock();
         if ((!which && zpoller_expired (poller))
         ||  (last_poll_ms > 0 &&  ( (zclock_time () - last_poll_ms) > cmsteps_gcd (self->steps) * 1000 )) ) {
 
@@ -278,8 +288,10 @@ fty_mc_server (zsock_t *pipe, void *args)
             // Record the time, when something was published last time
             last_poll_ms = zclock_time ();
             // if poller expired, we can continue in order to wait for new message
-            if ( !which && zpoller_expired (poller) )
+            if ( !which && zpoller_expired (poller) ) {
+                g_cm_mutex.unlock();
                 continue;
+            }
             // else if poller not expired, we need to process the message!!
         }
 
@@ -291,6 +303,7 @@ fty_mc_server (zsock_t *pipe, void *args)
             log_debug ("%s:\tAPI command=%s", self->name, command);
 
             if (streq (command, "$TERM")) {
+                g_cm_mutex.unlock();
                 log_info ("Got $TERM");
                 zstr_free (&command);
                 zmsg_destroy (&msg);
@@ -335,6 +348,9 @@ fty_mc_server (zsock_t *pipe, void *args)
                     log_error ("%s:\tCan't set consumer on stream '%s', '%s'", self->name, stream, pattern);
                 zstr_free (&pattern);
                 zstr_free (&stream);
+            }
+            else if (streq (command, "CREATE_PULL")) {
+              metric_pull = zactor_new (fty_metric_compute_metric_pull, (void*) self);
             }
             else
             if (streq (command, "CONNECT"))
@@ -383,18 +399,22 @@ fty_mc_server (zsock_t *pipe, void *args)
 
             zstr_free (&command);
             zmsg_destroy (&msg);
+            g_cm_mutex.unlock();
             continue;
         } // end of comand pipe processing
 
         zmsg_t *msg = mlm_client_recv (self->client);
         if ( !msg ) {
             log_error ("%s:\tmlm_client_recv() == NULL", self->name);
+            g_cm_mutex.unlock();
             continue;
         }
 
         // ignore linuxmetrics
-        if (streq (mlm_client_sender (self->client), "fty_info_linuxmetrics"))
+        if (streq (mlm_client_sender (self->client), "fty_info_linuxmetrics")) {
+            g_cm_mutex.unlock();
             continue;
+        }
 
         fty_proto_t *bmsg = fty_proto_decode (&msg);
 
@@ -409,6 +429,7 @@ fty_mc_server (zsock_t *pipe, void *args)
                 cmstats_delete_asset (self->stats, fty_proto_name (bmsg));
 
             fty_proto_destroy (&bmsg);
+            g_cm_mutex.unlock();
             continue;
         }
 
@@ -418,6 +439,7 @@ fty_mc_server (zsock_t *pipe, void *args)
         if ( fty_proto_id (bmsg) == FTY_PROTO_METRIC ) {
             s_handle_metric(bmsg,self);
             fty_proto_destroy (&bmsg);
+            g_cm_mutex.unlock();
             continue;
         }
 
@@ -426,9 +448,10 @@ fty_mc_server (zsock_t *pipe, void *args)
                 self->name, mlm_client_sender(self->client), mlm_client_subject(self->client));
 
         fty_proto_destroy (&bmsg);
+        g_cm_mutex.unlock();
     }
     // end of main loop, so we are going to die soon
-
+    g_cm_mutex.lock();
     if (self->filename) {
         int r = cmstats_save (self->stats, self->filename);
         if (r == -1)
@@ -436,7 +459,7 @@ fty_mc_server (zsock_t *pipe, void *args)
         else
             log_info ("%s:\tSaved succesfully '%s'", self->name, self->filename);
     }
-
+    g_cm_mutex.unlock();
     zactor_destroy(&metric_pull);
     cm_destroy (&self);
     zpoller_destroy (&poller);
