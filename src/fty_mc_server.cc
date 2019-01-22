@@ -508,6 +508,7 @@ fty_mc_server_test (bool verbose)
     zstr_sendx (cm_server, "DIR", "src", NULL);
     zstr_sendx (cm_server, "CONNECT", endpoint, NULL);
     zstr_sendx (cm_server, "PRODUCER", FTY_PROTO_STREAM_METRICS, NULL);
+    zstr_sendx (cm_server, "CREATE_PULL");
     //zstr_sendx (cm_server, "CONSUMER", FTY_PROTO_STREAM_METRICS, ".*", NULL);
     zclock_sleep (500);
 
@@ -536,7 +537,7 @@ fty_mc_server_test (bool verbose)
 //            NULL,
 //            time (NULL),
 //            10,
-//            "realpower.default",
+//            "realpower.default",(^realpower\\.default|.*temperature|.*humidity)((?!_arithmetic_mean|_max_|_min_).)*
 //            "DEV1",
 //            "100",
 //            "UNIT");
