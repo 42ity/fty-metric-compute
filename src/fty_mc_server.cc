@@ -175,7 +175,7 @@ fty_metric_compute_metric_pull (zsock_t *pipe, void* args)
           fty::shm::shmMetrics result;
           //All metrics realpower.default or temperature, or humidity who are not already produce by metric compute
           const std::string pattern = "(^realpower\\.default|.*temperature|.*humidity)((?!_arithmetic_mean|_max_|_min_).)*";
-          fty::shm::read_metrics(FTY_SHM_METRIC_TYPE, ".*", pattern,  result);
+          fty::shm::read_metrics(".*", pattern,  result);
           log_debug("number of metrics reads : %d", result.size());
           for (auto &element : result) {
             g_cm_mutex.lock();
@@ -508,7 +508,7 @@ fty_mc_server_test (bool verbose)
     zstr_sendx (cm_server, "DIR", "src", NULL);
     zstr_sendx (cm_server, "CONNECT", endpoint, NULL);
     zstr_sendx (cm_server, "PRODUCER", FTY_PROTO_STREAM_METRICS, NULL);
-    zstr_sendx (cm_server, "CREATE_PULL");
+    zstr_sendx (cm_server, "CREATE_PULL", NULL);
     //zstr_sendx (cm_server, "CONSUMER", FTY_PROTO_STREAM_METRICS, ".*", NULL);
     zclock_sleep (500);
 
