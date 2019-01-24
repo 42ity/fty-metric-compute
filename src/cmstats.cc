@@ -544,6 +544,7 @@ cmstats_test (bool verbose)
             "UNIT");
     fty_proto_t *bmsg = fty_proto_decode (&msg);
     fty_proto_t *stats = NULL;
+    fty_proto_print (bmsg);
 
     stats = cmstats_put (self, "min", "1s", 1, bmsg);
     assert (!stats);
@@ -564,6 +565,7 @@ cmstats_test (bool verbose)
             "42.109999999999",
             "UNIT");
     bmsg = fty_proto_decode (&msg);
+    fty_proto_print (bmsg);
 
     zclock_sleep (500);
     stats = cmstats_put (self, "min", "1s", 1, bmsg);
@@ -586,6 +588,7 @@ cmstats_test (bool verbose)
             "42.889999999999",
             "UNIT");
     bmsg = fty_proto_decode (&msg);
+    fty_proto_print (bmsg);
 
     //  1.4 check the minimal value
     stats = cmstats_put (self, "min", "1s", 1, bmsg);
