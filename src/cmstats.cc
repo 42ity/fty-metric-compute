@@ -547,11 +547,11 @@ cmstats_test (bool verbose)
     fty_proto_t *stats = NULL;
     fty_proto_print (bmsg);
 
-    stats = cmstats_put (self, "min", "10s", 1, bmsg);
+    stats = cmstats_put (self, "min", "10s", 10, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "max", "10s", 1, bmsg);
+    stats = cmstats_put (self, "max", "10s", 10, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "arithmetic_mean", "10s", 1, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "10s", 10, bmsg);
     assert (!stats);
     fty_proto_destroy (&bmsg);
 
@@ -569,11 +569,11 @@ cmstats_test (bool verbose)
     fty_proto_print (bmsg);
 
     zclock_sleep (5000);
-    stats = cmstats_put (self, "min", "10s", 1, bmsg);
+    stats = cmstats_put (self, "min", "10s", 10, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "max", "10s", 1, bmsg);
+    stats = cmstats_put (self, "max", "10s", 10, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "arithmetic_mean", "10s", 1, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "10s", 10, bmsg);
     assert (!stats);
     fty_proto_destroy (&bmsg);
 
@@ -592,7 +592,7 @@ cmstats_test (bool verbose)
     fty_proto_print (bmsg);
 
     //  1.4 check the minimal value
-    stats = cmstats_put (self, "min", "10s", 1, bmsg);
+    stats = cmstats_put (self, "min", "10s", 10, bmsg);
     assert (stats);
 
     fty_proto_print (stats);
@@ -601,7 +601,7 @@ cmstats_test (bool verbose)
     fty_proto_destroy (&stats);
 
     //  1.5 check the maximum value
-    stats = cmstats_put (self, "max", "10s", 1, bmsg);
+    stats = cmstats_put (self, "max", "10s", 10, bmsg);
     assert (stats);
 
     fty_proto_print (stats);
@@ -610,7 +610,7 @@ cmstats_test (bool verbose)
     fty_proto_destroy (&stats);
 
     //  1.6 check the arithmetic_mean
-    stats = cmstats_put (self, "arithmetic_mean", "10s", 1, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "10s", 10, bmsg);
     assert (stats);
 
     fty_proto_print (stats);
@@ -633,10 +633,10 @@ cmstats_test (bool verbose)
     // TRIVIA: extend the testing of self->stats
     //         hint is - uncomment the print :)
     //cmstats_print (self);
-    assert (zhashx_lookup (self->stats, "TYPE_max_1s@ELEMENT_SRC"));
+    assert (zhashx_lookup (self->stats, "TYPE_max_10s@ELEMENT_SRC"));
 
     cmstats_delete_asset (self, "ELEMENT_SRC");
-    assert (!zhashx_lookup (self->stats, "TYPE_max_1s@ELEMENT_SRC"));
+    assert (!zhashx_lookup (self->stats, "TYPE_max_10s@ELEMENT_SRC"));
 
     cmstats_destroy (&self);
     unlink (file);
