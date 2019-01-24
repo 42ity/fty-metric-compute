@@ -523,7 +523,7 @@ cmstats_test (bool verbose)
     //     what developers would accept ;-)
     {
         int64_t now_ms = zclock_time ();
-        int64_t sl = 1000 - (now_ms % 1000);
+        int64_t sl = 10000 - (now_ms % 10000);
         zclock_sleep (sl);
 
         log_debug ("now_ms=%" PRIi64 ", sl=%" PRIi64 ", now=%" PRIi64,
@@ -531,6 +531,7 @@ cmstats_test (bool verbose)
                    sl,
                    zclock_time ());
     }
+    zclock_sleep (1000);
 
     // 1. min test
     //  1.1 first metric in
@@ -546,15 +547,15 @@ cmstats_test (bool verbose)
     fty_proto_t *stats = NULL;
     fty_proto_print (bmsg);
 
-    stats = cmstats_put (self, "min", "1s", 1, bmsg);
+    stats = cmstats_put (self, "min", "10s", 1, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "max", "1s", 1, bmsg);
+    stats = cmstats_put (self, "max", "10s", 1, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "arithmetic_mean", "1s", 1, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "10s", 1, bmsg);
     assert (!stats);
     fty_proto_destroy (&bmsg);
 
-    zclock_sleep(50);
+    zclock_sleep(1000);
     //  1.2 second metric (inside interval) in
     msg = fty_proto_encode_metric (
             NULL,
@@ -567,16 +568,16 @@ cmstats_test (bool verbose)
     bmsg = fty_proto_decode (&msg);
     fty_proto_print (bmsg);
 
-    zclock_sleep (500);
-    stats = cmstats_put (self, "min", "1s", 1, bmsg);
+    zclock_sleep (5000);
+    stats = cmstats_put (self, "min", "10s", 1, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "max", "1s", 1, bmsg);
+    stats = cmstats_put (self, "max", "10s", 1, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "arithmetic_mean", "1s", 1, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "10s", 1, bmsg);
     assert (!stats);
     fty_proto_destroy (&bmsg);
 
-    zclock_sleep (610);
+    zclock_sleep (6100);
 
     //  1.3 third metric (outside interval) in
     msg = fty_proto_encode_metric (
@@ -591,7 +592,7 @@ cmstats_test (bool verbose)
     fty_proto_print (bmsg);
 
     //  1.4 check the minimal value
-    stats = cmstats_put (self, "min", "1s", 1, bmsg);
+    stats = cmstats_put (self, "min", "10s", 1, bmsg);
     assert (stats);
 
     fty_proto_print (stats);
@@ -600,7 +601,7 @@ cmstats_test (bool verbose)
     fty_proto_destroy (&stats);
 
     //  1.5 check the maximum value
-    stats = cmstats_put (self, "max", "1s", 1, bmsg);
+    stats = cmstats_put (self, "max", "10s", 1, bmsg);
     assert (stats);
 
     fty_proto_print (stats);
@@ -609,7 +610,7 @@ cmstats_test (bool verbose)
     fty_proto_destroy (&stats);
 
     //  1.6 check the arithmetic_mean
-    stats = cmstats_put (self, "arithmetic_mean", "1s", 1, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "10s", 1, bmsg);
     assert (stats);
 
     fty_proto_print (stats);
