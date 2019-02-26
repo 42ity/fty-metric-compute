@@ -635,8 +635,33 @@ cmstats_test (bool verbose)
     assert (streq (fty_proto_value (stats), xxx));
     zstr_free (&xxx);
     assert (streq (fty_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
-    fty_proto_destroy (&bmsg);
     fty_proto_destroy (&stats);
+    fty_proto_destroy (&bmsg);
+
+    //  1.7 4th metric (not a number) in
+    msg = fty_proto_encode_metric (
+            NULL,
+            time (NULL),
+            100000,
+            "TYPE",
+            "ELEMENT_SRC",
+            "foobar",
+            "UNIT");
+    fty_proto_t *bmsg2 = fty_proto_decode (&msg);
+
+    stats = cmstats_put (self, "min", "1s", 1, bmsg2);
+    assert (!stats);
+    fty_proto_destroy (&stats);
+
+    stats = cmstats_put (self, "max", "1s", 1, bmsg2);
+    assert (!stats);
+    fty_proto_destroy (&stats);
+
+    stats = cmstats_put (self, "arithmetic_mean", "1s", 1, bmsg2);
+    assert (!stats);
+    fty_proto_destroy (&stats);
+
+    fty_proto_destroy (&bmsg2);
 
     cmstats_save (self, "src/cmstats.zpl");
     cmstats_destroy (&self);
