@@ -65,14 +65,14 @@ GENERATED_DOCS =
 	@true
 
 GENERATED_DOCS += fty_mc_server.txt fty_mc_server.doc
-fty_mc_server.txt: $(top_srcdir)/src/fty_mc_server.c
+fty_mc_server.txt: $(top_srcdir)/src/fty_mc_server.cc
 	"$(srcdir)/mkman" "fty_mc_server" "$(builddir)/fty_mc_server.txt" "$(srcdir)/.."
 
 ### Note: for mains, we keep the source name rather than flattened name:c
 ### so that the manpages for binary programs match their name, at expense
 ### of perhaps being built in a subdirectory under doc/.
 GENERATED_DOCS += fty-metric-compute.txt fty-metric-compute.doc
-fty-metric-compute.txt: $(top_srcdir)/src/fty_metric_compute.c
+fty-metric-compute.txt: $(top_srcdir)/src/fty_metric_compute.cc
 	mkdir -p "$(builddir)/$(@D)"
 	"$(srcdir)/mkman" "fty_metric_compute" "$(builddir)/fty-metric-compute.txt" "$(srcdir)/.."
 

@@ -30,5 +30,6 @@
 #define AGENT_CM_SUM    "x-cm-sum"      // sum of the values
 #define AGENT_CM_TYPE   "x-cm-type"     // type of computation (min/max/arithmetic_mean)
 #define AGENT_CM_STEP   "x-cm-step"     // computation step (in seconds)
+#define AGENT_CM_LASTTS "x-cm-last-ts"  // timestamp of last metric
 
 #endif
