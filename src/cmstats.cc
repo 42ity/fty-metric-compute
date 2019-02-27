@@ -144,7 +144,7 @@ s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
     //IDEA: what implicit conversions happen here?
     double avg = (sum / (count+1));
     if (isnan (avg)) {
-        log_error ("s_arithmetic_mean: isnan (avg) %f / (%"PRIu64 " + 1), for %s@%s, skipping",
+        log_error ("s_arithmetic_mean: isnan (avg) %f / (%" PRIu64 " + 1), for %s@%s, skipping",
             sum,
             count,
             fty_proto_type ((fty_proto_t*) bmsg),
@@ -255,7 +255,8 @@ cmstats_put (
         fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
         fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (stat_msg)); // insert value as string into string
         fty_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", addr_fun);
-        fty_proto_aux_insert (stat_msg, AGENT_CM_STEP, "%"PRIu32, step);
+        fty_proto_aux_insert (stat_msg, AGENT_CM_STEP, "%" PRIu32, step);
+        fty_proto_aux_insert (stat_msg, AGENT_CM_LASTTS, "%" PRIu64, fty_proto_time(bmsg));
         fty_proto_set_ttl (stat_msg, 2 * step);
         zhashx_insert (self->stats, key, stat_msg);
         zstr_free (&key);
@@ -267,6 +268,10 @@ cmstats_put (
     // there is already some value
     // so check if it's not already older than we need
     uint64_t metric_time_s = fty_proto_time (stat_msg);
+    uint64_t new_metric_time_s = fty_proto_time(bmsg);
+    uint64_t last_metric_time_s =  fty_proto_aux_number (stat_msg, AGENT_CM_LASTTS, 0);
+    if(new_metric_time_s <= last_metric_time_s)
+      return NULL;
 
     // it is, return the stat value and "restart" the computation
     if ( ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) ) {
@@ -277,12 +282,13 @@ cmstats_put (
         // to compute the statistics for the next interval
         fty_proto_set_time (stat_msg, metric_time_new_s);
         fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
-        fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (stat_msg));
+        fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (bmsg));
+        fty_proto_aux_insert (stat_msg, AGENT_CM_LASTTS, "%" PRIu64, new_metric_time_s);
 
         fty_proto_set_value (stat_msg, "%s", fty_proto_value (bmsg));
         return ret;
     }
-
+    
     bool value_accepted = false;
     // if we're inside the interval, simply do the computation
     if (streq (addr_fun, "min"))
@@ -299,9 +305,10 @@ cmstats_put (
 
     // increase the counter
     if (value_accepted) {
-        fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "%"PRIu64,
+        fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "%" PRIu64,
             fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0) + 1
         );
+        fty_proto_aux_insert (stat_msg, AGENT_CM_LASTTS, "%" PRIu64, new_metric_time_s);
     }
 
     return NULL;
@@ -363,7 +370,7 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client)
         // What SHOULD be an assigned time for the NEW stat metric (in our case it is a left margin in the NEW interval)
         uint64_t metric_time_new_s = (now_ms - (now_ms % (step * 1000))) / 1000;
 
-        log_debug ("cmstats_poll: key=%s\n\tnow_ms=%"PRIu64 ", metric_time_new_s=%"PRIu64 ", metric_time_s=%"PRIu64 ", (now_ms - (metric_time_s * 1000))=%" PRIu64 "s, step*1000=%"PRIu32 "ms",
+        log_debug ("cmstats_poll: key=%s\n\tnow_ms=%" PRIu64 ", metric_time_new_s=%" PRIu64 ", metric_time_s=%" PRIu64 ", (now_ms - (metric_time_s * 1000))=%" PRIu64 "s, step*1000=%" PRIu32 "ms",
             key,
             now_ms,
             metric_time_new_s,
@@ -385,7 +392,8 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client)
 
             log_debug ("cmstats:\tPublishing message wiht subject=%s", key);
             fty_proto_print (ret);
-
+            
+            fty::shm::write_metric(ret);
             zmsg_t *msg = fty_proto_encode (&ret);
             int r = mlm_client_send (client, key, &msg);
             if ( r == -1 ) {
@@ -424,7 +432,7 @@ cmstats_save (cmstats_t *self, const char *filename)
         zconfig_put (item, "element_src", fty_proto_name (bmsg));
         zconfig_put (item, "value", fty_proto_value (bmsg));
         zconfig_put (item, "unit", fty_proto_unit (bmsg));
-        zconfig_putf (item, "ttl", "%"PRIu32, fty_proto_ttl (bmsg));
+        zconfig_putf (item, "ttl", "%" PRIu32, fty_proto_ttl (bmsg));
 
         zhash_t *aux = fty_proto_aux (bmsg);
         for (const char *aux_value = (const char*) zhash_first (aux);
@@ -540,14 +548,15 @@ cmstats_test (bool verbose)
     //     what developers would accept ;-)
     {
         int64_t now_ms = zclock_time ();
-        int64_t sl = 1000 - (now_ms % 1000);
+        int64_t sl = 10000 - (now_ms % 10000);
         zclock_sleep (sl);
 
-        log_debug ("now_ms=%"PRIi64 ", sl=%"PRIi64 ", now=%"PRIi64,
+        log_debug ("now_ms=%" PRIi64 ", sl=%" PRIi64 ", now=%" PRIi64,
                    now_ms,
                    sl,
                    zclock_time ());
     }
+    zclock_sleep (1000);
 
     // 1. min test
     //  1.1 first metric in
@@ -561,15 +570,17 @@ cmstats_test (bool verbose)
             "UNIT");
     fty_proto_t *bmsg = fty_proto_decode (&msg);
     fty_proto_t *stats = NULL;
+    fty_proto_print (bmsg);
 
-    stats = cmstats_put (self, "min", "1s", 1, bmsg);
+    stats = cmstats_put (self, "min", "10s", 10, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "max", "1s", 1, bmsg);
+    stats = cmstats_put (self, "max", "10s", 10, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "arithmetic_mean", "1s", 1, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "10s", 10, bmsg);
     assert (!stats);
     fty_proto_destroy (&bmsg);
 
+    zclock_sleep(1000);
     //  1.2 second metric (inside interval) in
     msg = fty_proto_encode_metric (
             NULL,
@@ -580,17 +591,18 @@ cmstats_test (bool verbose)
             "42.109999999999",
             "UNIT");
     bmsg = fty_proto_decode (&msg);
+    fty_proto_print (bmsg);
 
-    zclock_sleep (500);
-    stats = cmstats_put (self, "min", "1s", 1, bmsg);
+    zclock_sleep (5000);
+    stats = cmstats_put (self, "min", "10s", 10, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "max", "1s", 1, bmsg);
+    stats = cmstats_put (self, "max", "10s", 10, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "arithmetic_mean", "1s", 1, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "10s", 10, bmsg);
     assert (!stats);
     fty_proto_destroy (&bmsg);
 
-    zclock_sleep (610);
+    zclock_sleep (6100);
 
     //  1.3 third metric (outside interval) in
     msg = fty_proto_encode_metric (
@@ -602,9 +614,10 @@ cmstats_test (bool verbose)
             "42.889999999999",
             "UNIT");
     bmsg = fty_proto_decode (&msg);
+    fty_proto_print (bmsg);
 
     //  1.4 check the minimal value
-    stats = cmstats_put (self, "min", "1s", 1, bmsg);
+    stats = cmstats_put (self, "min", "10s", 10, bmsg);
     assert (stats);
 
     fty_proto_print (stats);
@@ -613,7 +626,7 @@ cmstats_test (bool verbose)
     fty_proto_destroy (&stats);
 
     //  1.5 check the maximum value
-    stats = cmstats_put (self, "max", "1s", 1, bmsg);
+    stats = cmstats_put (self, "max", "10s", 10, bmsg);
     assert (stats);
 
     fty_proto_print (stats);
@@ -622,7 +635,7 @@ cmstats_test (bool verbose)
     fty_proto_destroy (&stats);
 
     //  1.6 check the arithmetic_mean
-    stats = cmstats_put (self, "arithmetic_mean", "1s", 1, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "10s", 10, bmsg);
     assert (stats);
 
     fty_proto_print (stats);
@@ -670,10 +683,10 @@ cmstats_test (bool verbose)
     // TRIVIA: extend the testing of self->stats
     //         hint is - uncomment the print :)
     //cmstats_print (self);
-    assert (zhashx_lookup (self->stats, "TYPE_max_1s@ELEMENT_SRC"));
+    assert (zhashx_lookup (self->stats, "TYPE_max_10s@ELEMENT_SRC"));
 
     cmstats_delete_asset (self, "ELEMENT_SRC");
-    assert (!zhashx_lookup (self->stats, "TYPE_max_1s@ELEMENT_SRC"));
+    assert (!zhashx_lookup (self->stats, "TYPE_max_10s@ELEMENT_SRC"));
 
     cmstats_destroy (&self);
     unlink (file);

@@ -113,6 +113,9 @@
         </use>
     </use>
 
+    <use project = "fty_shm" libname = "libfty_shm" header="fty_shm.h" min_major = "1" test = "fty_shm_test" 
+	repository = "https://github.com/42ity/fty-shm.git"/>
+
     <class name = "cmstats" private = "1" >Computing the stats on metrics</class>
     <class name = "cmsteps" private = "1" >Helper class for list of steps</class>
     <class name = "fty_mc_server" state = "stable" >Computation server implementation</class>

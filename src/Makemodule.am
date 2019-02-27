@@ -13,17 +13,18 @@ lib_LTLIBRARIES += src/libfty_metric_compute.la
 pkgconfig_DATA = src/libfty_metric_compute.pc
 
 src_libfty_metric_compute_la_SOURCES = \
-    src/cmstats.c \
-    src/cmsteps.c \
-    src/fty_mc_server.c \
+    src/cmstats.cc \
+    src/cmsteps.cc \
+    src/fty_mc_server.cc \
     src/platform.h
 
 if ENABLE_DRAFTS
 src_libfty_metric_compute_la_SOURCES += \
-    src/fty_metric_compute_private_selftest.c
+    src/fty_metric_compute_private_selftest.cc
 endif
 
 src_libfty_metric_compute_la_CPPFLAGS = ${AM_CPPFLAGS}
+src_libfty_metric_compute_la_CXXFLAGS = ${AM_CXXFLAGS}
 
 src_libfty_metric_compute_la_LDFLAGS = \
     -version-info @LTVER@ \
@@ -51,7 +52,7 @@ if ENABLE_FTY_METRIC_COMPUTE
 bin_PROGRAMS += src/fty-metric-compute
 src_fty_metric_compute_CPPFLAGS = ${AM_CPPFLAGS}
 src_fty_metric_compute_LDADD = ${program_libs}
-src_fty_metric_compute_SOURCES = src/fty_metric_compute.c
+src_fty_metric_compute_SOURCES = src/fty_metric_compute.cc
 src_fty_metric_compute_config_DATA =
 src_fty_metric_compute_config_DATA += src/fty-metric-compute.cfg
 src_fty_metric_compute_configdir = $(sysconfdir)/fty-metric-compute
@@ -65,7 +66,7 @@ check_PROGRAMS += src/fty_metric_compute_selftest
 noinst_PROGRAMS += src/fty_metric_compute_selftest
 src_fty_metric_compute_selftest_CPPFLAGS = ${AM_CPPFLAGS}
 src_fty_metric_compute_selftest_LDADD = ${program_libs}
-src_fty_metric_compute_selftest_SOURCES = src/fty_metric_compute_selftest.c
+src_fty_metric_compute_selftest_SOURCES = src/fty_metric_compute_selftest.cc
 endif #ENABLE_FTY_METRIC_COMPUTE_SELFTEST
 
 # define custom target for all products of /src
@@ -203,7 +204,7 @@ coverage: src/fty_metric_compute_selftest $(top_builddir)/$(SELFTEST_DIR_RW) $(t
 	$(MAKE) check
 	lcov --base-directory . --directory . --capture -o coverage.info
 	lcov --remove coverage.info "/usr*" -o coverage.info
-	lcov --remove coverage.info "fty_metric_compute_selftest.c" -o coverage.info
+	lcov --remove coverage.info "fty_metric_compute_selftest.cc" -o coverage.info
 	$(RM) -rf coverage/*
 	genhtml -o coverage/ -t "fty-metric-compute test coverage" --num-spaces 4 coverage.info
 else
@@ -325,7 +326,7 @@ endif
 
 cppcheck.xml:
 	@echo "Performing cppcheck static analysis..."
-	cppcheck --enable=all --inconclusive --xml --xml-version=2 . 2>"$@"
+	cppcheck --std=c++11 --enable=all --inconclusive --xml --xml-version=2 . 2>"$@"
 	@echo "The cppcheck static analysis is done"
 
 # Note: this recipe tests that the Git-based workspace reports no changed
