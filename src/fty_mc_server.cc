@@ -132,16 +132,15 @@ void s_handle_metric(fty_proto_t *bmsg, cm_t *self, bool shm=false)
             step_p != NULL;
             step_p = cmsteps_next (self->steps))
     {
-        for (const char *type = (const char*) zlist_first (self->types);
-                type != NULL;
-                type = (const char*) zlist_next (self->types))
-        {
-            const char *step = (const char*) cmsteps_cursor (self->steps);
-            fty_proto_t *stat_msg = cmstats_put (self->stats, type, step, *step_p, bmsg);
-            if (stat_msg) {
+        const char *step = (const char*) cmsteps_cursor (self->steps);
+        zlistx_t *stat_msgs = cmstats_put (self->stats, step, *step_p, bmsg);
+        if (stat_msgs) {
+            fty_proto_t *stat_msg = (fty_proto_t *) zlistx_first (stat_msgs);
+            // put lock here
+            while (stat_msg) {
                 char *subject = zsys_sprintf ("%s@%s",
-                        fty_proto_type (stat_msg),
-                        fty_proto_name (stat_msg));
+                    fty_proto_type (stat_msg),
+                    fty_proto_name (stat_msg));
                 assert (subject);
 
                 fty::shm::write_metric(stat_msg);
@@ -151,8 +150,11 @@ void s_handle_metric(fty_proto_t *bmsg, cm_t *self, bool shm=false)
                     log_error ("%s:\tCannot publish statistics", self->name);
                 }
                 zstr_free (&subject);
+                stat_msg = (fty_proto_t *) zlistx_next (stat_msgs);
             }
+            //end lock here
         }
+        zlistx_destroy (&stat_msgs);
     }
 }
 
@@ -478,7 +480,7 @@ fty_mc_server_test (bool verbose)
 
     //  @selftest
     unlink ("src/state.zpl");
-    
+
     fty_shm_set_default_polling_interval(2);
 
     static const char *endpoint = "inproc://cm-server-test";

@@ -54,7 +54,6 @@ FTY_METRIC_COMPUTE_EXPORT void
 // * arithmetic_mean - to compute an arithmetic mean inside the given interval
 //
 // \param self - statistics object
-// \param aggr_fun - a type of aggregation ( min, max, avg )
 // \param sstep - string representation of the step to be used in topic creation
 // \param step - in [s]
 // \param bmsg - message with received new RAW value
@@ -65,8 +64,8 @@ FTY_METRIC_COMPUTE_EXPORT void
 //         ret  - if we have just completed the computation for the interval and
 //                started new one. ( The old one is returned)
 //
-FTY_METRIC_COMPUTE_EXPORT fty_proto_t*
-    cmstats_put (cmstats_t *self, const char* aggr_fun, const char *sstep, uint32_t step, fty_proto_t *bmsg);
+FTY_METRIC_COMPUTE_EXPORT zlistx_t*
+    cmstats_put (cmstats_t *self, const char *sstep, uint32_t step, fty_proto_t *bmsg);
 
 //  Remove all the entries related to the asset wiht asset_name from stats
 FTY_METRIC_COMPUTE_EXPORT void

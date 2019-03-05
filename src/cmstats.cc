@@ -188,19 +188,59 @@ cmstats_print (cmstats_t *self)
     }
 }
 
+static void
+s_generate_stat_msg
+    (zhashx_t *stats,
+     const char *type,
+     const char *key,
+     const char *sstep,
+     uint64_t metric_time,
+     uint32_t step,
+     fty_proto_t *bmsg)
+{
+    fty_proto_t *stat_msg = fty_proto_dup (bmsg);
+    fty_proto_set_type (stat_msg, "%s_%s_%s",
+        fty_proto_type (bmsg),
+        type,
+        sstep);
+    fty_proto_set_time (stat_msg, metric_time);
+    fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
+    fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (stat_msg)); // insert value as string into string
+    fty_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", type);
+    fty_proto_aux_insert (stat_msg, AGENT_CM_STEP, "%" PRIu32, step);
+    fty_proto_aux_insert (stat_msg, AGENT_CM_LASTTS, "%" PRIu64, fty_proto_time(bmsg));
+    fty_proto_set_ttl (stat_msg, 2 * step);
+    zhashx_insert (stats, key, stat_msg);
+    fty_proto_destroy (&stat_msg);
+}
+
+static void
+s_update_stat_msg
+    (fty_proto_t *stat_msg,
+     uint64_t metric_time,
+     const char *value,
+     uint64_t last_timestamp)
+{
+    // update statistics: restart it, as from now on we are going
+    // to compute the statistics for the next interval
+    fty_proto_set_time (stat_msg, metric_time);
+    fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
+    fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", value);
+    fty_proto_aux_insert (stat_msg, AGENT_CM_LASTTS, "%" PRIu64, last_timestamp);
+    fty_proto_set_value (stat_msg, "%s", value);
+}
+
 //  --------------------------------------------------------------------------
 // Update statistics with "aggr_fun" and "step" for the incomming message "bmsg"
 
-fty_proto_t *
+zlistx_t *
 cmstats_put (
     cmstats_t *self,
-    const char* addr_fun,
     const char *sstep,
     uint32_t step,
     fty_proto_t *bmsg)
 {
     assert (self);
-    assert (addr_fun);
     assert (bmsg);
 
     uint64_t now_ms = (uint64_t) zclock_time ();
@@ -211,81 +251,116 @@ cmstats_put (
     // works well for any value of step
     uint64_t metric_time_new_s = (now_ms - (now_ms % (step * 1000))) / 1000;
 
-    char *key;
-    int r = asprintf (&key, "%s_%s_%s@%s",
+    char *min_key = zsys_sprintf ("%s_%s_%s@%s",
             fty_proto_type (bmsg),
-            addr_fun,
+            "min",
             sstep,
             fty_proto_name (bmsg));
-    assert (r != -1);   // make gcc @ rhel happy
 
-    fty_proto_t *stat_msg = (fty_proto_t*) zhashx_lookup (self->stats, key);
+    fty_proto_t *stat_msg_min = (fty_proto_t*) zhashx_lookup (self->stats, min_key);
 
-    // handle the first insert
-    if (!stat_msg) {
-        stat_msg = fty_proto_dup (bmsg);
-        fty_proto_set_type (stat_msg, "%s_%s_%s",
+    char *max_key = zsys_sprintf ("%s_%s_%s@%s",
             fty_proto_type (bmsg),
-            addr_fun,
-            sstep);
-        fty_proto_set_time (stat_msg, metric_time_new_s);
-        fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
-        fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (stat_msg)); // insert value as string into string
-        fty_proto_aux_insert (stat_msg, AGENT_CM_TYPE, "%s", addr_fun);
-        fty_proto_aux_insert (stat_msg, AGENT_CM_STEP, "%" PRIu32, step);
-        fty_proto_aux_insert (stat_msg, AGENT_CM_LASTTS, "%" PRIu64, fty_proto_time(bmsg));
-        fty_proto_set_ttl (stat_msg, 2 * step);
-        zhashx_insert (self->stats, key, stat_msg);
-        zstr_free (&key);
-        fty_proto_destroy (&stat_msg);
+            "max",
+            sstep,
+            fty_proto_name (bmsg));
+
+    fty_proto_t *stat_msg_max = (fty_proto_t*) zhashx_lookup (self->stats, max_key);
+
+    char *avg_key = zsys_sprintf ("%s_%s_%s@%s",
+            fty_proto_type (bmsg),
+            "arithmetic_mean",
+            sstep,
+            fty_proto_name (bmsg));
+
+    fty_proto_t *stat_msg_avg = (fty_proto_t*) zhashx_lookup (self->stats, avg_key);
+
+    // we are supposed to have either all the messages, or none of them
+    bool none = (stat_msg_min == NULL) && (stat_msg_max == NULL) && (stat_msg_avg == NULL);
+    bool all = (stat_msg_min != NULL) && (stat_msg_max != NULL) && (stat_msg_avg != NULL);
+    if (! (all || none))
+        log_warning ("missing cached aggregate metric, flushing");
+    if (!all) {
+        fty_proto_destroy (&stat_msg_min);
+        fty_proto_destroy (&stat_msg_max);
+        fty_proto_destroy (&stat_msg_avg);
+
+        s_generate_stat_msg (self->stats, "min", min_key, sstep, metric_time_new_s, step, bmsg);
+        s_generate_stat_msg (self->stats, "max", max_key, sstep, metric_time_new_s, step, bmsg);
+        s_generate_stat_msg (self->stats, "arithmetic_mean", avg_key, sstep, metric_time_new_s, step, bmsg);
+
+        zstr_free (&min_key);
+        zstr_free (&max_key);
+        zstr_free (&avg_key);
         return NULL;
     }
-    zstr_free (&key);
+    zstr_free (&min_key);
+    zstr_free (&max_key);
+    zstr_free (&avg_key);
 
     // there is already some value
     // so check if it's not already older than we need
-    uint64_t metric_time_s = fty_proto_time (stat_msg);
     uint64_t new_metric_time_s = fty_proto_time(bmsg);
-    uint64_t last_metric_time_s =  fty_proto_aux_number (stat_msg, AGENT_CM_LASTTS, 0);
-    if(new_metric_time_s <= last_metric_time_s)
+
+    uint64_t metric_time_s_min = fty_proto_time (stat_msg_min);
+    uint64_t last_metric_time_s_min =  fty_proto_aux_number (stat_msg_min, AGENT_CM_LASTTS, 0);
+    if (new_metric_time_s <= last_metric_time_s_min)
       return NULL;
 
+    uint64_t metric_time_s_max = fty_proto_time (stat_msg_max);
+    uint64_t last_metric_time_s_max =  fty_proto_aux_number (stat_msg_max, AGENT_CM_LASTTS, 0);
+    if(new_metric_time_s <= last_metric_time_s_max)
+      return NULL;
+
+    uint64_t metric_time_s_avg = fty_proto_time (stat_msg_avg);
+    uint64_t last_metric_time_s_avg =  fty_proto_aux_number (stat_msg_avg, AGENT_CM_LASTTS, 0);
+    if(new_metric_time_s <= last_metric_time_s_avg)
+      return NULL;
+
+    //check if all the metrics are too old...
+    bool all_old = ((now_ms - (metric_time_s_min * 1000)) >= (step * 1000)) && ((now_ms - (metric_time_s_max * 1000)) >= (step * 1000)) && ((now_ms - (metric_time_s_avg * 1000)) >= (step * 1000));
+    // or if all are valid
+    bool all_valid = ((now_ms - (metric_time_s_min * 1000)) < (step * 1000)) && ((now_ms - (metric_time_s_max * 1000)) < (step * 1000)) && ((now_ms - (metric_time_s_avg * 1000)) < (step * 1000));
+
+    if (! (all_old || all_valid))
+        log_warning ("Metric timestamps are inconsistent, restarting the computation for all types");
     // it is, return the stat value and "restart" the computation
-    if ( ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) ) {
+    if ( !all_valid ) {
+        zlistx_t *aggregated_metrics = zlistx_new ();
+        zlistx_set_destructor (aggregated_metrics, (void (*)(void**)) fty_proto_destroy);
+        zlistx_set_duplicator (aggregated_metrics, (void* (*)(const void*)) fty_proto_dup);
+
         // duplicate "old" value for the interval, that has just ended
-        fty_proto_t *ret = fty_proto_dup (stat_msg);
+        zlistx_add_end (aggregated_metrics, stat_msg_min);
+        zlistx_add_end (aggregated_metrics, stat_msg_max);
+        zlistx_add_end (aggregated_metrics, stat_msg_avg);
 
-        // update statistics: restart it, as from now on we are going
-        // to compute the statistics for the next interval
-        fty_proto_set_time (stat_msg, metric_time_new_s);
-        fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "1");
-        fty_proto_aux_insert (stat_msg, AGENT_CM_SUM, "%s", fty_proto_value (bmsg));
-        fty_proto_aux_insert (stat_msg, AGENT_CM_LASTTS, "%" PRIu64, new_metric_time_s);
+        const char *value = fty_proto_value (bmsg);
+        s_update_stat_msg (stat_msg_min, metric_time_new_s, value, new_metric_time_s);
+        s_update_stat_msg (stat_msg_max, metric_time_new_s, value, new_metric_time_s);
+        s_update_stat_msg (stat_msg_avg, metric_time_new_s, value, new_metric_time_s);
 
-        fty_proto_set_value (stat_msg, "%s", fty_proto_value (bmsg));
-        return ret;
+        return aggregated_metrics;
     }
-    
+
     bool value_accepted = false;
-    // if we're inside the interval, simply do the computation
-    if (streq (addr_fun, "min"))
-        value_accepted = s_min (bmsg, stat_msg);
-    else
-    if (streq (addr_fun, "max"))
-        value_accepted = s_max (bmsg, stat_msg);
-    else
-    if (streq (addr_fun, "arithmetic_mean"))
-        value_accepted = s_arithmetic_mean (bmsg, stat_msg);
-    // fail otherwise
-    else
-        assert (false);
+    value_accepted = s_min (bmsg, stat_msg_min);
+    value_accepted = s_max (bmsg, stat_msg_max);
+    value_accepted = s_arithmetic_mean (bmsg, stat_msg_avg);
 
     // increase the counter
     if (value_accepted) {
-        fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "%" PRIu64,
-            fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0) + 1
-        );
-        fty_proto_aux_insert (stat_msg, AGENT_CM_LASTTS, "%" PRIu64, new_metric_time_s);
+        fty_proto_aux_insert (stat_msg_min, AGENT_CM_COUNT, "%" PRIu64,
+            fty_proto_aux_number (stat_msg_min, AGENT_CM_COUNT, 0) + 1);
+        fty_proto_aux_insert (stat_msg_min, AGENT_CM_LASTTS, "%" PRIu64, new_metric_time_s);
+
+        fty_proto_aux_insert (stat_msg_max, AGENT_CM_COUNT, "%" PRIu64,
+            fty_proto_aux_number (stat_msg_max, AGENT_CM_COUNT, 0) + 1);
+        fty_proto_aux_insert (stat_msg_max, AGENT_CM_LASTTS, "%" PRIu64, new_metric_time_s);
+
+        fty_proto_aux_insert (stat_msg_avg, AGENT_CM_COUNT, "%" PRIu64,
+            fty_proto_aux_number (stat_msg_avg, AGENT_CM_COUNT, 0) + 1);
+        fty_proto_aux_insert (stat_msg_avg, AGENT_CM_LASTTS, "%" PRIu64, new_metric_time_s);
     }
 
     return NULL;
@@ -368,7 +443,7 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client)
 
             log_debug ("cmstats:\tPublishing message wiht subject=%s", key);
             fty_proto_print (ret);
-            
+
             fty::shm::write_metric(ret);
             zmsg_t *msg = fty_proto_encode (&ret);
             int r = mlm_client_send (client, key, &msg);
@@ -544,14 +619,15 @@ cmstats_test (bool verbose)
             "100.989999",
             "UNIT");
     fty_proto_t *bmsg = fty_proto_decode (&msg);
-    fty_proto_t *stats = NULL;
+    //fty_proto_t *stats = NULL;
+    zlistx_t *stats = NULL;
     fty_proto_print (bmsg);
 
-    stats = cmstats_put (self, "min", "10s", 10, bmsg);
-    assert (!stats);
+    stats = cmstats_put (self, /*"min",*/ "10s", 10, bmsg);
+    /*assert (!stats);
     stats = cmstats_put (self, "max", "10s", 10, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "arithmetic_mean", "10s", 10, bmsg);
+    stats = cmstats_put (self, "arithmetic_mean", "10s", 10, bmsg);*/
     assert (!stats);
     fty_proto_destroy (&bmsg);
 
@@ -569,12 +645,12 @@ cmstats_test (bool verbose)
     fty_proto_print (bmsg);
 
     zclock_sleep (5000);
-    stats = cmstats_put (self, "min", "10s", 10, bmsg);
+    stats = cmstats_put (self, /*"min",*/ "10s", 10, bmsg);
     assert (!stats);
-    stats = cmstats_put (self, "max", "10s", 10, bmsg);
+    /*stats = cmstats_put (self, "max", "10s", 10, bmsg);
     assert (!stats);
     stats = cmstats_put (self, "arithmetic_mean", "10s", 10, bmsg);
-    assert (!stats);
+    assert (!stats);*/
     fty_proto_destroy (&bmsg);
 
     zclock_sleep (6100);
@@ -592,11 +668,39 @@ cmstats_test (bool verbose)
     fty_proto_print (bmsg);
 
     //  1.4 check the minimal value
-    stats = cmstats_put (self, "min", "10s", 10, bmsg);
+    stats = cmstats_put (self, /*"min",*/ "10s", 10, bmsg);
     assert (stats);
 
-    fty_proto_print (stats);
-    assert (streq (fty_proto_value (stats), "42.11"));
+    fty_proto_t *stat = (fty_proto_t *) zlistx_first (stats);
+    //fty_proto_print (stats);
+    fty_proto_print (stat);
+    assert (streq (fty_proto_value (stat), "42.11"));
+    assert (streq (fty_proto_aux_string (stat, AGENT_CM_COUNT, NULL), "2"));
+    //fty_proto_destroy (&stat);
+    stat = (fty_proto_t *) zlistx_next (stats);
+
+    fty_proto_print (stat);
+    assert (streq (fty_proto_value (stat), "100.989999"));
+    assert (streq (fty_proto_aux_string (stat, AGENT_CM_COUNT, NULL), "2"));
+    //fty_proto_destroy (&stat);
+    stat = (fty_proto_t *) zlistx_next (stats);
+
+    log_info ("avg real: %s", fty_proto_value (stat) );
+    log_info ("avg expected: %.2f", (100.989999+42.11) / 2 );
+
+
+    char *xxx = NULL;
+    int r = asprintf (&xxx, "%.2f", (100.99+42.1) / 2);
+    assert (r != -1);   // make gcc @ rhel happy
+    assert (streq (fty_proto_value (stat), xxx));
+    zstr_free (&xxx);
+    assert (streq (fty_proto_aux_string (stat, AGENT_CM_COUNT, NULL), "2"));
+    fty_proto_destroy (&bmsg);
+    //fty_proto_destroy (&stat);
+    //stat = (fty_proto_t *) zlistx_next (stats);
+    zlistx_destroy (&stats);
+    //fty_proto_destroy (&stats);
+    /*assert (streq (fty_proto_value (stats), "42.11"));
     assert (streq (fty_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     fty_proto_destroy (&stats);
 
@@ -624,7 +728,7 @@ cmstats_test (bool verbose)
     zstr_free (&xxx);
     assert (streq (fty_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     fty_proto_destroy (&bmsg);
-    fty_proto_destroy (&stats);
+    fty_proto_destroy (&stats); */
 
     cmstats_save (self, "src/cmstats.zpl");
     cmstats_destroy (&self);
