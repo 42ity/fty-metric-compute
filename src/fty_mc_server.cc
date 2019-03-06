@@ -38,7 +38,6 @@ typedef struct _cm_t {
     char *name;             // server name
     cmstats_t *stats;       // computed statictics for all types and steps
     cmsteps_t *steps;       // info about supported steps
-    zlist_t *types;         // info about supported statistic types (min, max, avg)
     mlm_client_t *client;   // malamute client
     char *filename;         // state file name
 } cm_t;
@@ -55,7 +54,6 @@ cm_destroy (cm_t **self_p)
 
         // free structure items
         mlm_client_destroy (&self->client);
-        zlist_destroy (&self->types);
         cmsteps_destroy (&self->steps);
         cmstats_destroy (&self->stats);
         zstr_free (&self->name);
@@ -82,11 +80,7 @@ cm_new (const char* name)
         if (self->stats)
             self->steps = cmsteps_new ();
         if (self->steps)
-            self->types = zlist_new ();
-        if (self->types)
             self->client = mlm_client_new ();
-        if (self->client)
-            zlist_autofree (self->types);
         else
             cm_destroy (&self);
     }
@@ -380,19 +374,6 @@ fty_mc_server (zsock_t *pipe, void *args)
                     int r = cmsteps_put (self->steps, foo);
                     if (r == -1)
                         log_info ("%s:\tIgnoring unrecognized step='%s'", self->name, foo);
-                    zstr_free (&foo);
-                }
-            }
-            else
-            if (streq (command, "TYPES"))
-            {
-                for (;;)
-                {
-                    char *foo = zmsg_popstr (msg);
-                    // TODO: may be we need some check here for supported types
-                    if (!foo)
-                        break;
-                    zlist_append (self->types, foo);
                     zstr_free (&foo);
                 }
             }

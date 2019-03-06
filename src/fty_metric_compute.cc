@@ -96,7 +96,6 @@ int main (int argc, char *argv [])
     log_info ("%s - started connected to %s", ACTOR_NAME, endpoint);
 
     zactor_t *cm_server = zactor_new (fty_mc_server, (void *) ACTOR_NAME);
-    zstr_sendx (cm_server, "TYPES", "min", "max", "arithmetic_mean", NULL);
     zstr_sendx (cm_server, "STEPS", "15m", "30m", "1h", "8h", "24h", "7d", "30d", NULL);
     // TODO: Make this configurable, runtime and build-time default
     zstr_sendx (cm_server, "DIR", "/var/lib/fty/fty-metric-compute", NULL);
