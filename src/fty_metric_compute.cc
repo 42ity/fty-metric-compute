@@ -101,7 +101,7 @@ int main (int argc, char *argv [])
     // TODO: Make this configurable, runtime and build-time default
     zstr_sendx (cm_server, "DIR", "/var/lib/fty/fty-metric-compute", NULL);
     zstr_sendx (cm_server, "CONNECT", endpoint, NULL);
-    zstr_sendx (cm_server, "PRODUCER", FTY_PROTO_STREAM_METRICS, NULL);
+    //zstr_sendx (cm_server, "PRODUCER", FTY_PROTO_STREAM_METRICS, NULL);
     zstr_sendx (cm_server, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
     zstr_sendx (cm_server, "CREATE_PULL", NULL);
     //zstr_sendx (cm_server, "CONSUMER", FTY_PROTO_STREAM_METRICS, "(^realpower.default.*|.*temperature.*|.*humidity.*)", NULL);

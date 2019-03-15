@@ -74,7 +74,7 @@ FTY_METRIC_COMPUTE_EXPORT void
 
 //  Polling handler - publish && reset the computed values if needed
 FTY_METRIC_COMPUTE_EXPORT void
-    cmstats_poll (cmstats_t *self, mlm_client_t *client);
+    cmstats_poll (cmstats_t *self);
 
 //  Save the cmstats to filename, return -1 if fail
 FTY_METRIC_COMPUTE_EXPORT int
