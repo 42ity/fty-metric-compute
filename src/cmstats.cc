@@ -326,10 +326,9 @@ cmstats_delete_asset (cmstats_t *self, const char *asset_name)
 //  Polling handler - publish && reset the computed values
 
 void
-cmstats_poll (cmstats_t *self, mlm_client_t *client)
+cmstats_poll (cmstats_t *self)
 {
     assert (self);
-    assert (client);
 
     // What is it time now? [ms]
     uint64_t now_ms = (uint64_t) zclock_time ();
@@ -369,12 +368,11 @@ cmstats_poll (cmstats_t *self, mlm_client_t *client)
             log_debug ("cmstats:\tPublishing message wiht subject=%s", key);
             fty_proto_print (ret);
             
-            fty::shm::write_metric(ret);
-            zmsg_t *msg = fty_proto_encode (&ret);
-            int r = mlm_client_send (client, key, &msg);
+            int r = fty::shm::write_metric(ret);
             if ( r == -1 ) {
                 log_error ("cmstats:\tCannot publish statistics");
             }
+            fty_proto_destroy(&ret);
         }
     }
 }
