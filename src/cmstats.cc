@@ -358,6 +358,18 @@ cmstats_poll (cmstats_t *self)
         if ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) {
             // Yes, it should!
             fty_proto_t *ret = fty_proto_dup (stat_msg);
+            log_debug ("cmstats:\tPublishing message wiht subject=%s", key);
+            fty_proto_print (ret);
+            
+            if(fty_proto_aux_number(ret, AGENT_CM_COUNT, 0) == 0) {
+              log_info ("No metrics for this step, do not publish");
+            } else {
+              int r = fty::shm::write_metric(ret);
+              if ( r == -1 ) {
+                  log_error ("cmstats:\tCannot publish statistics");
+              }
+            }
+            fty_proto_destroy(&ret);
 
             fty_proto_set_time (stat_msg, metric_time_new_s);
             fty_proto_aux_insert (stat_msg, AGENT_CM_COUNT, "0"); // As we do not receive any message, start from ZERO
@@ -365,14 +377,6 @@ cmstats_poll (cmstats_t *self)
 
             fty_proto_set_value (stat_msg, "0");  // As we do not receive any message, start from ZERO
 
-            log_debug ("cmstats:\tPublishing message wiht subject=%s", key);
-            fty_proto_print (ret);
-            
-            int r = fty::shm::write_metric(ret);
-            if ( r == -1 ) {
-                log_error ("cmstats:\tCannot publish statistics");
-            }
-            fty_proto_destroy(&ret);
         }
     }
 }
