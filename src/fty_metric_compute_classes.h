@@ -32,8 +32,6 @@
 //  External API
 #include "../include/fty_metric_compute.h"
 
-//  Extra headers
-
 //  Opaque class structures to allow forward references
 #ifndef CMSTATS_T_DEFINED
 typedef struct _cmstats_t cmstats_t;
@@ -43,6 +41,8 @@ typedef struct _cmstats_t cmstats_t;
 typedef struct _cmsteps_t cmsteps_t;
 #define CMSTEPS_T_DEFINED
 #endif
+
+//  Extra headers
 
 //  Internal API
 
