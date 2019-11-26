@@ -1,0 +1,7 @@
+   fty-metric-compute -> libsodium;
+   fty-metric-compute -> libzmq;
+   fty-metric-compute -> czmq;
+   fty-metric-compute -> malamute;
+   fty-metric-compute -> fty-common-logging;
+   fty-metric-compute -> fty-proto;
+   fty-metric-compute -> fty_shm;
