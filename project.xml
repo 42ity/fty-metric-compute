@@ -12,7 +12,6 @@
     <target name = "redhat" />
     <target name = "travis" >
         <option name = "recursive_dependencies" value = "true"/>
-        <option name = "dist" value = "trusty" />
         <option name = "shadow_gcc" value = "2" />
         <!-- option name = "clangformat_implem" value = "autotools" / -->
         <option name = "use_cmake" value = "0" />
