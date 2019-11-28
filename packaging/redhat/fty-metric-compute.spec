@@ -59,7 +59,6 @@ BuildRequires:  libsodium-devel
 BuildRequires:  zeromq-devel
 BuildRequires:  czmq-devel >= 3.0.2
 BuildRequires:  malamute-devel >= 1.0.0
-BuildRequires:  log4cplus-devel
 BuildRequires:  fty-common-logging-devel
 BuildRequires:  fty-proto-devel >= 1.0.0
 BuildRequires:  fty_shm-devel >= 1.0.0
@@ -91,7 +90,6 @@ Requires:       libsodium-devel
 Requires:       zeromq-devel
 Requires:       czmq-devel >= 3.0.2
 Requires:       malamute-devel >= 1.0.0
-Requires:       log4cplus-devel
 Requires:       fty-common-logging-devel
 Requires:       fty-proto-devel >= 1.0.0
 Requires:       fty_shm-devel >= 1.0.0
