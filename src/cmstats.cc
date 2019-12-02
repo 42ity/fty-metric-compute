@@ -28,6 +28,7 @@
 
 #include "fty_metric_compute_classes.h"
 #include "fty_metric_compute.h"
+#include <math.h>
 
 
 typedef void (compute_fn) (const fty_proto_t *bmsg, fty_proto_t *stat_msg);
