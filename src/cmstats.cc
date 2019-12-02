@@ -63,7 +63,7 @@ s_min (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
     uint64_t count = fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double stat_value = atof (fty_proto_value (stat_msg));
 
-    if (isnan (stat_value)
+    if (std::isnan (stat_value)
     ||  count == 0
     || (bmsg_value < stat_value)) {
         fty_proto_set_value (stat_msg, "%.2f", bmsg_value);
@@ -84,7 +84,7 @@ s_max (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
     uint64_t count = fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double stat_value = atof (fty_proto_value (stat_msg));
 
-    if (isnan (stat_value)
+    if (std::isnan (stat_value)
     ||  count == 0
     || (bmsg_value > stat_value)) {
         fty_proto_set_value (stat_msg, "%.2f", bmsg_value);
@@ -105,7 +105,7 @@ s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
     uint64_t count = fty_proto_aux_number (stat_msg, AGENT_CM_COUNT, 0);
     double sum = atof (fty_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"));
 
-    if (isnan (value) || isnan (sum)) {
+    if (std::isnan (value) || std::isnan (sum)) {
         log_warning ("s_arithmetic_mean: isnan value(%s) or sum (%s) for %s@%s, skipping",
             fty_proto_value ((fty_proto_t*) bmsg),
             fty_proto_aux_string (stat_msg, AGENT_CM_SUM, "0"),
@@ -122,7 +122,7 @@ s_arithmetic_mean (const fty_proto_t *bmsg, fty_proto_t *stat_msg)
         sum += value;
 
     double avg = (sum / (count+1));
-    if (isnan (avg)) {
+    if (std::isnan (avg)) {
         log_error ("s_arithmetic_mean: isnan (avg) %f / (%" PRIu64 " + 1), for %s@%s, skipping",
             sum,
             count,
@@ -461,7 +461,7 @@ cmstats_load (const char *filename)
         fty_proto_set_ttl (bmsg, atoi (zconfig_get (key_config, "ttl", "0")));
 
         double value = atof (fty_proto_value (bmsg));
-        if (isnan (value)) {
+        if (std::isnan (value)) {
             log_warning ("cmstats_load:\tisnan (%s) for %s@%s, ignoring",
                     fty_proto_value (bmsg),
                     fty_proto_type (bmsg),
@@ -483,7 +483,7 @@ cmstats_load (const char *filename)
         }
 
         value = atof (fty_proto_aux_string (bmsg, AGENT_CM_SUM, "0"));
-        if (isnan (value)) {
+        if (std::isnan (value)) {
             fty_proto_aux_insert (bmsg, AGENT_CM_SUM, "0");
         }
 
