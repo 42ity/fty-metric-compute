@@ -29,6 +29,7 @@
 #include "fty_metric_compute_classes.h"
 #include "fty_metric_compute.h"
 #include <mutex>
+#include <cmath>
 
 std::mutex g_cm_mutex;
 
