@@ -29,6 +29,7 @@
 #include "fty_metric_compute_classes.h"
 #include "fty_metric_compute.h"
 #include <mutex>
+#include <cmath>
 
 std::mutex g_cm_mutex;
 
@@ -114,7 +115,7 @@ void s_handle_metric(fty_proto_t *bmsg, cm_t *self, bool shm=false)
 
     // sometimes we do have nan in values, report if we get something like that on METRICS
     double value = atof (fty_proto_value (bmsg));
-    if (isnan (value)) {
+    if (std::isnan (value)) {
         if(shm) {
             log_warning("%s:\tisnan ('%s') from shm",self->name, fty_proto_value(bmsg));
         } else {
