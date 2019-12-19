@@ -55,6 +55,8 @@ FTY_METRIC_COMPUTE_ORIG_CFLAGS="${CFLAGS:-none}"
 AC_PROG_CC
 AC_PROG_CC_C99
 AM_PROG_CC_C_O
+AC_PROG_CXX
+AC_PROG_CXX_C_O
 AC_LIBTOOL_WIN32_DLL
 AC_PROG_LIBTOOL
 AC_PROG_SED
@@ -105,6 +107,23 @@ else
     AC_MSG_RESULT([no])
 fi
 
+# Install Python Bindings
+AC_MSG_CHECKING([whether to install Python bindings])
+
+AC_ARG_ENABLE([bindings-python],
+    AS_HELP_STRING([--enable-bindings-python=yes/no],
+        [Install Python Bindings [default=no]]),
+    [ZPROJECT_BINDINGS_PYTHON=$enableval],
+    [ZPROJECT_BINDINGS_PYTHON=no])
+
+if test "x$ZPROJECT_BINDINGS_PYTHON" == "xyes"; then
+    AM_CONDITIONAL(ENABLE_BINDINGS_PYTHON, true)
+    AC_MSG_RESULT([yes])
+else
+    AM_CONDITIONAL(ENABLE_BINDINGS_PYTHON, false)
+    AC_MSG_RESULT([no])
+fi
+
 # See if clang-format is in PATH; the result unblocks the relevant recipes
 WITH_CLANG_FORMAT=""
 AS_IF([test x"$CLANG_FORMAT" = x],
@@ -135,6 +154,7 @@ AS_IF([test -n "${pkgconfigdir}" -a -d "${pkgconfigdir}"],
 
 # Will be used to add flags to pkg-config useful when apps want to statically link
 PKGCFG_LIBS_PRIVATE=""
+PKGCFG_NAMES_PRIVATE=""
 
 # Archive user supplied flags
 PREVIOUS_CFLAGS="${CFLAGS}"
@@ -173,7 +193,6 @@ AS_IF([test x"${search_libsodium}" = xyes], [
     found_pkgconfig=""
     PKG_CHECK_MODULES([libsodium], [libsodium >= 0.0.0],
     [
-        PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $libsodium_LIBS"
         was_libsodium_check_lib_detected=pkgcfg
         found_pkgconfig="libsodium"
     ],
@@ -207,12 +226,11 @@ AS_IF([test x"${search_libsodium}" = xyes], [
 dnl END of PKG_CHECK_MODULES and/or direct tests for libsodium
     AS_CASE(["x${was_libsodium_check_lib_detected}"],
         [xpkgcfg], [
-                AC_SUBST([pkgconfig_name_libsodium],["${found_pkgconfig}"])
+                PKGCFG_NAMES_PRIVATE="$PKGCFG_NAMES_PRIVATE ${found_pkgconfig}"
                 CFLAGS="${libsodium_CFLAGS} ${CFLAGS}"
                 LIBS="${libsodium_LIBS} ${LIBS}"
             ],
         [xyes], [
-                AC_SUBST([pkgconfig_name_libsodium],[""])
                 CFLAGS="${libsodium_synthetic_cflags} ${CFLAGS}"
                 LDFLAGS="${libsodium_synthetic_libs} ${LDFLAGS}"
                 LIBS="${libsodium_synthetic_libs} ${LIBS}"
@@ -221,7 +239,6 @@ dnl END of PKG_CHECK_MODULES and/or direct tests for libsodium
                 AC_SUBST([libsodium_LIBS],[${libsodium_synthetic_libs}])
             ],
         [xno], [
-                AC_SUBST([pkgconfig_name_libsodium],[""])
             AC_MSG_ERROR([Cannot find pkg-config metadata for libsodium 0.0.0 or higher])
     ])
 ])
@@ -260,7 +277,6 @@ AS_IF([test x"${search_libzmq}" = xyes], [
     found_pkgconfig=""
     PKG_CHECK_MODULES([libzmq], [libzmq >= 0.0.0],
     [
-        PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $libzmq_LIBS"
         was_libzmq_check_lib_detected=pkgcfg
         found_pkgconfig="libzmq"
     ],
@@ -294,12 +310,11 @@ AS_IF([test x"${search_libzmq}" = xyes], [
 dnl END of PKG_CHECK_MODULES and/or direct tests for libzmq
     AS_CASE(["x${was_libzmq_check_lib_detected}"],
         [xpkgcfg], [
-                AC_SUBST([pkgconfig_name_libzmq],["${found_pkgconfig}"])
+                PKGCFG_NAMES_PRIVATE="$PKGCFG_NAMES_PRIVATE ${found_pkgconfig}"
                 CFLAGS="${libzmq_CFLAGS} ${CFLAGS}"
                 LIBS="${libzmq_LIBS} ${LIBS}"
             ],
         [xyes], [
-                AC_SUBST([pkgconfig_name_libzmq],[""])
                 CFLAGS="${libzmq_synthetic_cflags} ${CFLAGS}"
                 LDFLAGS="${libzmq_synthetic_libs} ${LDFLAGS}"
                 LIBS="${libzmq_synthetic_libs} ${LIBS}"
@@ -308,7 +323,6 @@ dnl END of PKG_CHECK_MODULES and/or direct tests for libzmq
                 AC_SUBST([libzmq_LIBS],[${libzmq_synthetic_libs}])
             ],
         [xno], [
-                AC_SUBST([pkgconfig_name_libzmq],[""])
             AC_MSG_ERROR([Cannot find pkg-config metadata for libzmq 0.0.0 or higher])
     ])
 ])
@@ -347,7 +361,6 @@ AS_IF([test x"${search_libczmq}" = xyes], [
     found_pkgconfig=""
     PKG_CHECK_MODULES([czmq], [libczmq >= 3.0.2],
     [
-        PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $czmq_LIBS"
         was_czmq_check_lib_detected=pkgcfg
         found_pkgconfig="libczmq"
     ],
@@ -381,12 +394,11 @@ AS_IF([test x"${search_libczmq}" = xyes], [
 dnl END of PKG_CHECK_MODULES and/or direct tests for libczmq
     AS_CASE(["x${was_czmq_check_lib_detected}"],
         [xpkgcfg], [
-                AC_SUBST([pkgconfig_name_libczmq],["${found_pkgconfig} >= 3.0.2"])
+                PKGCFG_NAMES_PRIVATE="$PKGCFG_NAMES_PRIVATE ${found_pkgconfig} >= 3.0.2"
                 CFLAGS="${czmq_CFLAGS} ${CFLAGS}"
                 LIBS="${czmq_LIBS} ${LIBS}"
             ],
         [xyes], [
-                AC_SUBST([pkgconfig_name_libczmq],[""])
                 CFLAGS="${czmq_synthetic_cflags} ${CFLAGS}"
                 LDFLAGS="${czmq_synthetic_libs} ${LDFLAGS}"
                 LIBS="${czmq_synthetic_libs} ${LIBS}"
@@ -395,7 +407,6 @@ dnl END of PKG_CHECK_MODULES and/or direct tests for libczmq
                 AC_SUBST([czmq_LIBS],[${czmq_synthetic_libs}])
             ],
         [xno], [
-                AC_SUBST([pkgconfig_name_libczmq],[""])
             AC_MSG_ERROR([Cannot find pkg-config metadata for libczmq 3.0.2 or higher])
     ])
 ])
@@ -434,7 +445,6 @@ AS_IF([test x"${search_libmlm}" = xyes], [
     found_pkgconfig=""
     PKG_CHECK_MODULES([malamute], [libmlm >= 1.0.0],
     [
-        PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $malamute_LIBS"
         was_malamute_check_lib_detected=pkgcfg
         found_pkgconfig="libmlm"
     ],
@@ -468,12 +478,11 @@ AS_IF([test x"${search_libmlm}" = xyes], [
 dnl END of PKG_CHECK_MODULES and/or direct tests for libmlm
     AS_CASE(["x${was_malamute_check_lib_detected}"],
         [xpkgcfg], [
-                AC_SUBST([pkgconfig_name_libmlm],["${found_pkgconfig} >= 1.0.0"])
+                PKGCFG_NAMES_PRIVATE="$PKGCFG_NAMES_PRIVATE ${found_pkgconfig} >= 1.0.0"
                 CFLAGS="${malamute_CFLAGS} ${CFLAGS}"
                 LIBS="${malamute_LIBS} ${LIBS}"
             ],
         [xyes], [
-                AC_SUBST([pkgconfig_name_libmlm],[""])
                 CFLAGS="${malamute_synthetic_cflags} ${CFLAGS}"
                 LDFLAGS="${malamute_synthetic_libs} ${LDFLAGS}"
                 LIBS="${malamute_synthetic_libs} ${LIBS}"
@@ -482,98 +491,10 @@ dnl END of PKG_CHECK_MODULES and/or direct tests for libmlm
                 AC_SUBST([malamute_LIBS],[${malamute_synthetic_libs}])
             ],
         [xno], [
-                AC_SUBST([pkgconfig_name_libmlm],[""])
             AC_MSG_ERROR([Cannot find pkg-config metadata for libmlm 1.0.0 or higher])
     ])
 ])
 dnl END of enabled attempts to search for libmlm
-
-
-was_log4cplus_check_lib_detected=no
-
-search_log4cplus="yes"
-
-AC_ARG_WITH([log4cplus],
-    [
-        AS_HELP_STRING([--with-log4cplus],
-        [yes or no. Optionally specify log4cplus prefix (directory where its include/ and lib/ are located), but that is only used if pkgconfig metadata is not found first])
-    ],
-    [
-        search_log4cplus="yes"
-    ],
-    [
-        search_log4cplus="yes"
-    ])
-AS_CASE([x"${with_log4cplus}"],
-    [xyes], [search_log4cplus="yes"],
-    [xno],  [search_log4cplus="no"])
-
-dnl We do not abort right now, because the maintainer/developer may have
-dnl something particular in mind, e.g. to build just parts of a project.
-AS_IF([test x"${search_log4cplus}" = xno],
-    [AC_MSG_WARN([Required dependency on log4cplus was explicitly disabled during configuration by '--with-log4cplus=no'; subsequent full build of fty-metric-compute may fail])])
-
-AS_IF([test x"${search_log4cplus}" = xyes], [
-    # Archive previously detected and supplied flags
-    PRE_SEARCH_CFLAGS="${CFLAGS}"
-    PRE_SEARCH_LIBS="${LIBS}"
-
-    found_pkgconfig=""
-    PKG_CHECK_MODULES([log4cplus], [log4cplus >= 0.0.0],
-    [
-        PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $log4cplus_LIBS"
-        was_log4cplus_check_lib_detected=pkgcfg
-        found_pkgconfig="log4cplus"
-    ],
-    [
-        AC_MSG_NOTICE([Package log4cplus not found; falling back to defined compilability tests])
-
-        log4cplus_synthetic_cflags=""
-        log4cplus_synthetic_libs="-llog4cplus"
-
-        if test -n "${with_log4cplus}" && test x"${with_log4cplus}" != xyes && test x"${with_log4cplus}" != xno; then
-            if test -r "${with_log4cplus}/include/log4cplus/clogger.h"; then
-                log4cplus_synthetic_cflags="-I${with_log4cplus}/include"
-                log4cplus_synthetic_libs="-L${with_log4cplus}/lib -llog4cplus"
-            else
-            AC_MSG_ERROR([Header file ${with_log4cplus}/include/log4cplus/clogger.h was not found. Please check log4cplus prefix])
-            fi
-        else
-            AC_CHECK_HEADER([log4cplus/clogger.h], [],
-            AC_MSG_ERROR([Header file log4cplus/clogger.h was not found in default search paths])
-                )
-        fi
-
-        AC_CHECK_LIB([log4cplus], [appender_test],
-            [
-                was_log4cplus_check_lib_detected=yes
-                PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE -llog4cplus"
-            ],
-            [AC_MSG_ERROR([cannot link with -llog4cplus, install log4cplus])])
-    ])
-
-dnl END of PKG_CHECK_MODULES and/or direct tests for log4cplus
-    AS_CASE(["x${was_log4cplus_check_lib_detected}"],
-        [xpkgcfg], [
-                AC_SUBST([pkgconfig_name_log4cplus],["${found_pkgconfig}"])
-                CFLAGS="${log4cplus_CFLAGS} ${CFLAGS}"
-                LIBS="${log4cplus_LIBS} ${LIBS}"
-            ],
-        [xyes], [
-                AC_SUBST([pkgconfig_name_log4cplus],[""])
-                CFLAGS="${log4cplus_synthetic_cflags} ${CFLAGS}"
-                LDFLAGS="${log4cplus_synthetic_libs} ${LDFLAGS}"
-                LIBS="${log4cplus_synthetic_libs} ${LIBS}"
-
-                AC_SUBST([log4cplus_CFLAGS],[${log4cplus_synthetic_cflags}])
-                AC_SUBST([log4cplus_LIBS],[${log4cplus_synthetic_libs}])
-            ],
-        [xno], [
-                AC_SUBST([pkgconfig_name_log4cplus],[""])
-            AC_MSG_ERROR([Cannot find pkg-config metadata for log4cplus 0.0.0 or higher])
-    ])
-])
-dnl END of enabled attempts to search for log4cplus
 
 
 was_fty_common_logging_check_lib_detected=no
@@ -608,7 +529,6 @@ AS_IF([test x"${search_libfty_common_logging}" = xyes], [
     found_pkgconfig=""
     PKG_CHECK_MODULES([fty_common_logging], [libfty_common_logging >= 0.0.0],
     [
-        PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $fty_common_logging_LIBS"
         was_fty_common_logging_check_lib_detected=pkgcfg
         found_pkgconfig="libfty_common_logging"
     ],
@@ -642,12 +562,11 @@ AS_IF([test x"${search_libfty_common_logging}" = xyes], [
 dnl END of PKG_CHECK_MODULES and/or direct tests for libfty_common_logging
     AS_CASE(["x${was_fty_common_logging_check_lib_detected}"],
         [xpkgcfg], [
-                AC_SUBST([pkgconfig_name_libfty_common_logging],["${found_pkgconfig}"])
+                PKGCFG_NAMES_PRIVATE="$PKGCFG_NAMES_PRIVATE ${found_pkgconfig}"
                 CFLAGS="${fty_common_logging_CFLAGS} ${CFLAGS}"
                 LIBS="${fty_common_logging_LIBS} ${LIBS}"
             ],
         [xyes], [
-                AC_SUBST([pkgconfig_name_libfty_common_logging],[""])
                 CFLAGS="${fty_common_logging_synthetic_cflags} ${CFLAGS}"
                 LDFLAGS="${fty_common_logging_synthetic_libs} ${LDFLAGS}"
                 LIBS="${fty_common_logging_synthetic_libs} ${LIBS}"
@@ -656,7 +575,6 @@ dnl END of PKG_CHECK_MODULES and/or direct tests for libfty_common_logging
                 AC_SUBST([fty_common_logging_LIBS],[${fty_common_logging_synthetic_libs}])
             ],
         [xno], [
-                AC_SUBST([pkgconfig_name_libfty_common_logging],[""])
             AC_MSG_ERROR([Cannot find pkg-config metadata for libfty_common_logging 0.0.0 or higher])
     ])
 ])
@@ -695,7 +613,6 @@ AS_IF([test x"${search_libfty_proto}" = xyes], [
     found_pkgconfig=""
     PKG_CHECK_MODULES([fty_proto], [libfty_proto >= 1.0.0],
     [
-        PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE $fty_proto_LIBS"
         was_fty_proto_check_lib_detected=pkgcfg
         found_pkgconfig="libfty_proto"
     ],
@@ -729,12 +646,11 @@ AS_IF([test x"${search_libfty_proto}" = xyes], [
 dnl END of PKG_CHECK_MODULES and/or direct tests for libfty_proto
     AS_CASE(["x${was_fty_proto_check_lib_detected}"],
         [xpkgcfg], [
-                AC_SUBST([pkgconfig_name_libfty_proto],["${found_pkgconfig} >= 1.0.0"])
+                PKGCFG_NAMES_PRIVATE="$PKGCFG_NAMES_PRIVATE ${found_pkgconfig} >= 1.0.0"
                 CFLAGS="${fty_proto_CFLAGS} ${CFLAGS}"
                 LIBS="${fty_proto_LIBS} ${LIBS}"
             ],
         [xyes], [
-                AC_SUBST([pkgconfig_name_libfty_proto],[""])
                 CFLAGS="${fty_proto_synthetic_cflags} ${CFLAGS}"
                 LDFLAGS="${fty_proto_synthetic_libs} ${LDFLAGS}"
                 LIBS="${fty_proto_synthetic_libs} ${LIBS}"
@@ -743,17 +659,101 @@ dnl END of PKG_CHECK_MODULES and/or direct tests for libfty_proto
                 AC_SUBST([fty_proto_LIBS],[${fty_proto_synthetic_libs}])
             ],
         [xno], [
-                AC_SUBST([pkgconfig_name_libfty_proto],[""])
             AC_MSG_ERROR([Cannot find pkg-config metadata for libfty_proto 1.0.0 or higher])
     ])
 ])
 dnl END of enabled attempts to search for libfty_proto
 
 
+was_fty_shm_check_lib_detected=no
+
+search_libfty_shm="yes"
+
+AC_ARG_WITH([libfty_shm],
+    [
+        AS_HELP_STRING([--with-libfty_shm],
+        [yes or no. Optionally specify libfty_shm prefix (directory where its include/ and lib/ are located), but that is only used if pkgconfig metadata is not found first])
+    ],
+    [
+        search_libfty_shm="yes"
+    ],
+    [
+        search_libfty_shm="yes"
+    ])
+AS_CASE([x"${with_libfty_shm}"],
+    [xyes], [search_libfty_shm="yes"],
+    [xno],  [search_libfty_shm="no"])
+
+dnl We do not abort right now, because the maintainer/developer may have
+dnl something particular in mind, e.g. to build just parts of a project.
+AS_IF([test x"${search_libfty_shm}" = xno],
+    [AC_MSG_WARN([Required dependency on fty_shm was explicitly disabled during configuration by '--with-libfty_shm=no'; subsequent full build of fty-metric-compute may fail])])
+
+AS_IF([test x"${search_libfty_shm}" = xyes], [
+    # Archive previously detected and supplied flags
+    PRE_SEARCH_CFLAGS="${CFLAGS}"
+    PRE_SEARCH_LIBS="${LIBS}"
+
+    found_pkgconfig=""
+    PKG_CHECK_MODULES([fty_shm], [libfty_shm >= 1.0.0],
+    [
+        was_fty_shm_check_lib_detected=pkgcfg
+        found_pkgconfig="libfty_shm"
+    ],
+    [
+        AC_MSG_NOTICE([Package libfty_shm not found with needed constraints; falling back to defined compilability tests])
+
+        fty_shm_synthetic_cflags=""
+        fty_shm_synthetic_libs="-lfty_shm"
+
+        if test -n "${with_libfty_shm}" && test x"${with_libfty_shm}" != xyes && test x"${with_libfty_shm}" != xno; then
+            if test -r "${with_libfty_shm}/include/fty_shm.h"; then
+                fty_shm_synthetic_cflags="-I${with_libfty_shm}/include"
+                fty_shm_synthetic_libs="-L${with_libfty_shm}/lib -lfty_shm"
+            else
+            AC_MSG_ERROR([Header file ${with_libfty_shm}/include/fty_shm.h was not found. Please check libfty_shm prefix])
+            fi
+        else
+            AC_CHECK_HEADER([fty_shm.h], [],
+            AC_MSG_ERROR([Header file fty_shm.h was not found in default search paths])
+                )
+        fi
+
+        AC_CHECK_LIB([fty_shm], [fty_shm_test],
+            [
+                was_fty_shm_check_lib_detected=yes
+                PKGCFG_LIBS_PRIVATE="$PKGCFG_LIBS_PRIVATE -lfty_shm"
+            ],
+            [AC_MSG_ERROR([cannot link with -lfty_shm, install libfty_shm])])
+    ])
+
+dnl END of PKG_CHECK_MODULES and/or direct tests for libfty_shm
+    AS_CASE(["x${was_fty_shm_check_lib_detected}"],
+        [xpkgcfg], [
+                PKGCFG_NAMES_PRIVATE="$PKGCFG_NAMES_PRIVATE ${found_pkgconfig} >= 1.0.0"
+                CFLAGS="${fty_shm_CFLAGS} ${CFLAGS}"
+                LIBS="${fty_shm_LIBS} ${LIBS}"
+            ],
+        [xyes], [
+                CFLAGS="${fty_shm_synthetic_cflags} ${CFLAGS}"
+                LDFLAGS="${fty_shm_synthetic_libs} ${LDFLAGS}"
+                LIBS="${fty_shm_synthetic_libs} ${LIBS}"
+
+                AC_SUBST([fty_shm_CFLAGS],[${fty_shm_synthetic_cflags}])
+                AC_SUBST([fty_shm_LIBS],[${fty_shm_synthetic_libs}])
+            ],
+        [xno], [
+            AC_MSG_ERROR([Cannot find pkg-config metadata for libfty_shm 1.0.0 or higher])
+    ])
+])
+dnl END of enabled attempts to search for libfty_shm
+
+
 CFLAGS="${PREVIOUS_CFLAGS}"
 LIBS="${PREVIOUS_LIBS}"
 
 AC_SUBST(pkg_config_libs_private, $PKGCFG_LIBS_PRIVATE)
+AC_SUBST(pkg_config_names_private, $PKGCFG_NAMES_PRIVATE)
 
 # Platform specific checks
 fty_metric_compute_on_mingw32="no"
@@ -1041,23 +1041,84 @@ AS_IF([test "x$enable_Werror" = "xyes" || test "x$enable_Werror" = "xauto"],
     [AS_IF([test -n "$CC"],[AS_IF([$CC --version 2>&1 | grep 'Free Software Foundation' > /dev/null && test "x$GCC" = "xyes"],
         [AC_MSG_NOTICE([Enabling pedantic errors for GNU C])
          CFLAGS="$CFLAGS -pedantic -Wall -Werror -Werror=format-security"],
-        [AC_MSG_NOTICE([Not enabling pedantic errors: compiler not supported by this recipe (not GNU C)])
-         AS_IF([test "x$enable_Werror" = "xyes"], [AC_MSG_ERROR([--enable-Werror=yes was requested and can not be satisfied for C: $CC])])
-        ])])
+        [AS_IF([$CC --version 2>&1 | grep 'clang version' > /dev/null],
+            [AC_MSG_NOTICE([Enabling pedantic errors for clang C])
+             CFLAGS="$CFLAGS -pedantic -Wall -Werror -Werror=format-security"],
+            [AC_MSG_NOTICE([Not enabling pedantic errors: compiler not supported by this recipe (not GNU or clang C)])
+             AS_IF([test "x$enable_Werror" = "xyes"], [AC_MSG_ERROR([--enable-Werror=yes was requested and can not be satisfied for C: $CC])])
+        ])])])
      AS_IF([test -n "$CXX"],[AS_IF([$CXX --version 2>&1 | grep 'Free Software Foundation' > /dev/null && test "x$GCC" = "xyes"],
         [AC_MSG_NOTICE([Enabling pedantic errors for GNU C++])
          CXXFLAGS="$CXXFLAGS -pedantic -Wall -Werror -Werror=format-security"],
-        [AC_MSG_NOTICE([Not enabling pedantic errors: compiler not supported by this recipe (not GNU C++)])
-         AS_IF([test "x$enable_Werror" = "xyes"], [AC_MSG_ERROR([--enable-Werror=yes was requested and can not be satisfied for C++: $CXX])])
-        ])])
+        [AS_IF([$CXX --version 2>&1 | grep 'clang version' > /dev/null],
+            [AC_MSG_NOTICE([Enabling pedantic errors for clang C++])
+             CXXFLAGS="$CXXFLAGS -pedantic -Wall -Werror -Werror=format-security"],
+            [AC_MSG_NOTICE([Not enabling pedantic errors: compiler not supported by this recipe (not GNU or clang C++)])
+             AS_IF([test "x$enable_Werror" = "xyes"], [AC_MSG_ERROR([--enable-Werror=yes was requested and can not be satisfied for C++: $CXX])])
+        ])])])
      AS_IF([test -n "$CPP"],[AS_IF([$CPP --version 2>&1 | grep 'Free Software Foundation' > /dev/null && test "x$GCC" = "xyes"],
         [AC_MSG_NOTICE([Enabling pedantic errors for GNU CPP preprocessor])
-         CPPFLAGS="$CPPFLAGS -pedantic -Werror -Wall -Wc++-compat"
+         CPPFLAGS="$CPPFLAGS -pedantic -Werror -Wall"
         ],
-        [AC_MSG_NOTICE([Not enabling pedantic errors: preprocessor not supported by this recipe (not GNU CPP)])
-         AS_IF([test "x$enable_Werror" = "xyes"], [AC_MSG_ERROR([--enable-Werror=yes was requested and can not be satisfied for CPP: $CPP])])
-        ])])
+        [AS_IF([$CXX --version 2>&1 | grep 'clang version' > /dev/null],
+            [AC_MSG_NOTICE([Enabling pedantic errors for clang CPP preprocessor])
+             CPPFLAGS="$CPPFLAGS -pedantic -Werror -Wall"
+            ],
+            [AC_MSG_NOTICE([Not enabling pedantic errors: preprocessor not supported by this recipe (not GNU or clang CPP)])
+             AS_IF([test "x$enable_Werror" = "xyes"], [AC_MSG_ERROR([--enable-Werror=yes was requested and can not be satisfied for CPP: $CPP])])
+        ])])])
 ])
+
+# One of big missing features in gcc-4.8 was std::regex support fixed in 4.9
+# Testing code from https://stackoverflow.com/a/41186162/4715872
+# caveats apply (use of unguaranteed private macros)
+AC_ARG_ENABLE([gcc-std-regex],
+    AS_HELP_STRING([--enable-gcc-std-regex],
+        [Check for std::regex support if compiler is GCC, assuming it means satisfactory level of C++11 there [default=yes]]),
+    [enable_gcc_std_regex=$enableval],
+    [enable_gcc_std_regex=$defaultval])
+
+AM_CONDITIONAL([ENABLE_GCC_STD_REGEX], [test x$enable_gcc_std_regex != xno])
+
+AS_IF([test -n "$CXX"],[AS_IF([$CXX --version 2>&1 | grep 'Free Software Foundation' > /dev/null && test "x$GCC" = "xyes"],
+  [AS_IF([test "x$enable_gcc_std_regex" = "xyes" || test "x$enable_gcc_std_regex" = "xauto"],
+    [AC_MSG_CHECKING([for GNU C++11 support level expected by gcc-4.9 release or newer])
+     CXXFLAGS="$CXXFLAGS --std=c++11"
+     AC_LANG_PUSH([C++])
+     AC_TRY_RUN([/* Note: private macros in use, test can break over time */
+#include <regex>
+
+#if __cplusplus >= 201103L &&                             \
+    (!defined(__GLIBCXX__) || (__cplusplus >= 201402L) || \
+        (defined(_GLIBCXX_REGEX_DFS_QUANTIFIERS_LIMIT) || \
+         defined(_GLIBCXX_REGEX_STATE_LIMIT)           || \
+             (defined(_GLIBCXX_RELEASE)                && \
+             _GLIBCXX_RELEASE > 4)))
+#define HAVE_WORKING_REGEX 1
+#else
+#define HAVE_WORKING_REGEX 0
+#endif
+
+#include <iostream>
+
+int main() {
+  const std::regex regex(".*");
+  const std::string string = "This should match!";
+  const auto result = std::regex_search(string, regex);
+#if HAVE_WORKING_REGEX
+  std::cerr << "<regex> works, look: " << std::boolalpha << result << std::endl;
+#else
+  std::cerr << "<regex> doesn't work, look: " << std::boolalpha << result << std::endl;
+#endif
+  return result ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+     ], AC_MSG_RESULT([ok]), AC_MSG_ERROR([test for std::regex failed]) )
+     AC_LANG_POP([C++])
+    ]
+  ,[AC_MSG_WARN([Not checking for GNU C++11 support level expected by gcc-4.9 release or newer, due to explicit configure option])
+    AC_MSG_WARN([YOU ARE AT RISK OF SOMETHING NOT WORKING WITH THIS BUILD OF THE CODEBASE])]
+  )]
+)])
 
 # Specify output files
 AC_CONFIG_FILES([Makefile
@@ -1065,7 +1126,7 @@ AC_CONFIG_FILES([Makefile
                  include/Makefile
                  src/libfty_metric_compute.pc
                  src/fty-metric-compute.cfg
-                 ])
+                ])
 
 AM_COND_IF([WITH_SYSTEMD_UNITS],
     [AC_CONFIG_FILES([
@@ -1115,6 +1176,7 @@ echo Build docs.................... : $fty_metric_compute_build_doc
 echo Build host.................... : $BUILD_HOST
 echo Build user.................... : $USER
 echo Draft API..................... : $enable_drafts
+echo Python Bindings............... : $ZPROJECT_BINDINGS_PYTHON
 echo Install dir................... : $prefix
 echo Install man pages............. : $fty_metric_compute_install_man
 
@@ -1134,6 +1196,7 @@ echo Configure complete! Now proceed with:
 echo "    - 'make'               compile the project"
 echo "    - 'make check'         run the project's selftest"
 echo "    - 'make install'       install the project to $prefix"
+echo "    - 'make bindings       install enabled language bindings (Python, etc)"
 echo
 echo Further options are:
 echo "    - 'make callcheck'     run the project's selftest with valgrind to"

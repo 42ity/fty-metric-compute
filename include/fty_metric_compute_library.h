@@ -34,6 +34,7 @@
 #include <malamute.h>
 #include <fty-log/fty_logger.h>
 #include <ftyproto.h>
+#include <fty_shm.h>
 
 //  FTY_METRIC_COMPUTE version macros for compile-time API detection
 #define FTY_METRIC_COMPUTE_VERSION_MAJOR 1
