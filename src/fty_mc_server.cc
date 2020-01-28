@@ -94,7 +94,7 @@ cm_new (const char* name)
     return self;
 }
 
-void s_handle_metric(fty_proto_t *bmsg, cm_t *self, bool shm=false)
+void s_handle_metric(fty_proto_t *bmsg, cm_t *self, bool shm)
 {
     // get rid of messages with empty or null name
     if (fty_proto_name (bmsg) == NULL || streq (fty_proto_name (bmsg), ""))
@@ -112,6 +112,21 @@ void s_handle_metric(fty_proto_t *bmsg, cm_t *self, bool shm=false)
         }
         return;
     }
+
+    // PQSWMBT-3723: do not compute/agregate min/max/mean + average metrics for sensor temp. and humidity
+    // as: 'temperature.default@sensor-xxx', 'humidity.default@sensor-xxx'
+    {
+        const char *name = fty_proto_name (bmsg);
+        const char *type = fty_proto_type (bmsg); // aka quantity
+        if (name && type
+            && (strstr(name, "sensor-") == name) // starts with
+            && (streq(type, "temperature.default") || streq(type, "humidity.default"))
+        ) {
+            log_trace("%s: %s@%s metric excluded from computation", self->name, type, name);
+            return;
+        }
+    }
+    // end PQSWMBT-3723
 
     // sometimes we do have nan in values, report if we get something like that on METRICS
     double value = atof (fty_proto_value (bmsg));
@@ -437,7 +452,7 @@ fty_mc_server (zsock_t *pipe, void *args)
         // update statistics for all steps and types
         // All statistics are computed for "left side of the interval"
         if ( fty_proto_id (bmsg) == FTY_PROTO_METRIC ) {
-            s_handle_metric(bmsg,self);
+            s_handle_metric(bmsg, self, false);
             fty_proto_destroy (&bmsg);
             g_cm_mutex.unlock();
             continue;
@@ -478,7 +493,7 @@ fty_mc_server_test (bool verbose)
 
     //  @selftest
     unlink ("src/state.zpl");
-    
+
     fty_shm_set_default_polling_interval(2);
 
     static const char *endpoint = "inproc://cm-server-test";
