@@ -266,7 +266,7 @@ cmstats_put (
         fty_proto_set_value (stat_msg, "%s", fty_proto_value (bmsg));
         return ret;
     }
-    
+
     bool value_accepted = false;
     // if we're inside the interval, simply do the computation
     if (streq (addr_fun, "min"))
@@ -361,7 +361,7 @@ cmstats_poll (cmstats_t *self)
             fty_proto_t *ret = fty_proto_dup (stat_msg);
             log_debug ("cmstats:\tPublishing message wiht subject=%s", key);
             fty_proto_print (ret);
-            
+
             if(fty_proto_aux_number(ret, AGENT_CM_COUNT, 0) == 0) {
               log_info ("No metrics for this step, do not publish");
             } else {
@@ -566,7 +566,7 @@ cmstats_test (bool verbose)
             10,
             "TYPE",
             "ELEMENT_SRC",
-            "42.109999999999",
+            "42.11",
             "UNIT");
     bmsg = fty_proto_decode (&msg);
     fty_proto_print (bmsg);
@@ -599,6 +599,7 @@ cmstats_test (bool verbose)
     assert (stats);
 
     fty_proto_print (stats);
+    log_trace("value : %s", fty_proto_value (stats));
     assert (streq (fty_proto_value (stats), "42.11"));
     assert (streq (fty_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     fty_proto_destroy (&stats);
@@ -608,6 +609,7 @@ cmstats_test (bool verbose)
     assert (stats);
 
     fty_proto_print (stats);
+    log_trace("value : %s", fty_proto_value (stats));
     assert (streq (fty_proto_value (stats), "100.989999"));
     assert (streq (fty_proto_aux_string (stats, AGENT_CM_COUNT, NULL), "2"));
     fty_proto_destroy (&stats);
