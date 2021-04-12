@@ -13,7 +13,7 @@ PartOf=bios.target
 
 [Service]
 Type=simple
-User=bios
+User=@MC_USER@
 Restart=always
 EnvironmentFile=-/usr/share/bios/etc/default/bios
 EnvironmentFile=-/usr/share/bios/etc/default/bios__%n.conf
@@ -24,7 +24,7 @@ EnvironmentFile=-/etc/default/bios__%n.conf
 EnvironmentFile=-/etc/default/fty
 EnvironmentFile=-/etc/default/fty__%n.conf
 Environment="prefix=/usr"
-ExecStart=/usr/bin/@PROJECT_NAME@
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/@PROJECT_NAME@
 
 [Install]
 WantedBy=bios.target

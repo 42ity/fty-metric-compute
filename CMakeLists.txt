@@ -27,8 +27,8 @@ etn_target(exe ${PROJECT_NAME}
 )
 
 #install resources files
-set(MAL_SETTINGS_DIR "${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/lib/fty/${PROJECT_NAME}")
-set(MAL_USER "bios")
+set(MC_SETTINGS_DIR "${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/lib/fty/${PROJECT_NAME}")
+set(MC_USER "bios")
 
 configure_file("${PROJECT_SOURCE_DIR}/resources/fty-metric-compute.cfg.in" "${PROJECT_BINARY_DIR}/resources/fty-metric-compute.cfg" @ONLY)
 install(FILES "${PROJECT_BINARY_DIR}/resources/fty-metric-compute.cfg" DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/${PROJECT_NAME})
