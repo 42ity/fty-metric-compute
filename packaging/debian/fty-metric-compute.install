@@ -1,4 +1,0 @@
-usr/bin/fty-metric-compute
-etc/fty-metric-compute/fty-metric-compute.cfg
-lib/systemd/system/fty-metric-compute.service
-

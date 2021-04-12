@@ -489,10 +489,10 @@ fty_mc_server_test (bool verbose)
 {
     printf (" * fty_mc_server:");
     printf ("\n");
-    assert(fty_shm_set_test_dir("src/selftest-rw") == 0);
+    assert(fty_shm_set_test_dir("selftest-rw") == 0);
 
     //  @selftest
-    unlink ("src/state.zpl");
+    unlink ("selftest-rw/state.zpl");
 
     fty_shm_set_default_polling_interval(2);
 
@@ -520,7 +520,7 @@ fty_mc_server_test (bool verbose)
 
     zstr_sendx (cm_server, "TYPES", "min", "max", "arithmetic_mean", NULL);
     zstr_sendx (cm_server, "STEPS", "10s", "50s", NULL);
-    zstr_sendx (cm_server, "DIR", "src", NULL);
+    zstr_sendx (cm_server, "DIR", "selftest-rw", NULL);
     zstr_sendx (cm_server, "CONNECT", endpoint, NULL);
 //    zstr_sendx (cm_server, "PRODUCER", FTY_PROTO_STREAM_METRICS, NULL);
     zstr_sendx (cm_server, "CREATE_PULL", NULL);
@@ -730,10 +730,9 @@ fty_mc_server_test (bool verbose)
 //    mlm_client_destroy (&consumer_1s);
 //    mlm_client_destroy (&producer);
     zactor_destroy (&server);
-
+    assert (zfile_exists ("selftest-rw/state.zpl"));
+    unlink ("selftest-rw/state.zpl");
     fty_shm_delete_test_dir();
-    assert (zfile_exists ("src/state.zpl"));
-    unlink ("src/state.zpl");
     //  @end
     printf ("OK\n");
 }

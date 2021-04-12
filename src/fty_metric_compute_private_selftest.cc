@@ -42,6 +42,8 @@ fty_metric_compute_private_selftest (bool verbose, const char *subtest)
         cmstats_test (verbose);
     if (streq (subtest, "$ALL") || streq (subtest, "cmsteps_test"))
         cmsteps_test (verbose);
+    if (streq (subtest, "$ALL") || streq (subtest, "server_test"))
+        fty_mc_server_test (verbose);
 }
 /*
 ################################################################################
