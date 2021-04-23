@@ -27,14 +27,20 @@ etn_target(exe ${PROJECT_NAME}
 )
 
 #install resources files
-set(MC_SETTINGS_DIR "${CMAKE_INSTALL_FULL_LOCALSTATEDIR}/lib/fty/${PROJECT_NAME}")
+set(MC_SETTINGS_DIR "${CMAKE_INSTALL_LOCALSTATEDIR}/lib/fty/${PROJECT_NAME}")
 set(MC_USER "bios")
 
+# Agent config
 configure_file("${PROJECT_SOURCE_DIR}/resources/fty-metric-compute.cfg.in" "${PROJECT_BINARY_DIR}/resources/fty-metric-compute.cfg" @ONLY)
-install(FILES "${PROJECT_BINARY_DIR}/resources/fty-metric-compute.cfg" DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/${PROJECT_NAME})
+install(FILES "${PROJECT_BINARY_DIR}/resources/fty-metric-compute.cfg" DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/${PROJECT_NAME})
 
+# systemd unit
 configure_file("${PROJECT_SOURCE_DIR}/resources/fty-metric-compute.service.in" "${PROJECT_BINARY_DIR}/resources/fty-metric-compute.service" @ONLY)
 install(FILES "${PROJECT_BINARY_DIR}/resources/fty-metric-compute.service" DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/systemd/system/)
+
+# systemd tmpfiles
+configure_file("${PROJECT_SOURCE_DIR}/resources/fty-metric-compute.conf.in" "${PROJECT_BINARY_DIR}/resources/fty-metric-compute.conf" @ONLY)
+install(FILES "${PROJECT_BINARY_DIR}/resources/fty-metric-compute.conf" DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/tmpfiles.d/)
 
 if (BUILD_TESTING)
 
