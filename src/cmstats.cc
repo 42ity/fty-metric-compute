@@ -505,7 +505,8 @@ cmstats_test (bool verbose)
     printf ("\n");
 
     //  @selftest
-    static const char *file = "src/cmstats.zpl";
+    assert(fty_shm_set_test_dir("selftest-rw") == 0);
+    static const char *file = "selftest-rw/cmstats.zpl";
     unlink (file);
 
     log_info ("Test 1: Simple test on empty structure");
@@ -631,9 +632,9 @@ cmstats_test (bool verbose)
     fty_proto_destroy (&bmsg);
     fty_proto_destroy (&stats);
 
-    cmstats_save (self, "src/cmstats.zpl");
+    cmstats_save (self, "selftest-rw/cmstats.zpl");
     cmstats_destroy (&self);
-    self = cmstats_load ("src/cmstats.zpl");
+    self = cmstats_load ("selftest-rw/cmstats.zpl");
 
     // TRIVIA: extend the testing of self->stats
     //         hint is - uncomment the print :)

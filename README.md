@@ -7,11 +7,11 @@ stream.
 
 To build fty-metric-compute project run:
 
-```bash
-./autogen.sh
-./configure
+mkdir build && cd build
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=usr -DBUILD_TESTING=On ..
 make
 make check # to run self-test
+sudo make install
 ```
 ## How to run
 

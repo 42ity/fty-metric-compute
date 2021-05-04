@@ -34,16 +34,13 @@ typedef struct _cmstats_t cmstats_t;
 
 //  @interface
 //  Create a new cmstats
-FTY_METRIC_COMPUTE_EXPORT cmstats_t *
-    cmstats_new (void);
+cmstats_t *cmstats_new (void);
 
 //  Destroy the cmstats
-FTY_METRIC_COMPUTE_EXPORT void
-    cmstats_destroy (cmstats_t **self_p);
+void cmstats_destroy (cmstats_t **self_p);
 
 //  Print the cmstats
-FTY_METRIC_COMPUTE_EXPORT void
-    cmstats_print (cmstats_t *self);
+void cmstats_print (cmstats_t *self);
 
 // Update statistics with "aggr_fun" and "step" for the incomming message "bmsg"
 // Caller is responsible for destroying the value that was returned.
@@ -65,29 +62,23 @@ FTY_METRIC_COMPUTE_EXPORT void
 //         ret  - if we have just completed the computation for the interval and
 //                started new one. ( The old one is returned)
 //
-FTY_METRIC_COMPUTE_EXPORT fty_proto_t*
-    cmstats_put (cmstats_t *self, const char* aggr_fun, const char *sstep, uint32_t step, fty_proto_t *bmsg);
+fty_proto_t* cmstats_put (cmstats_t *self, const char* aggr_fun, const char *sstep, uint32_t step, fty_proto_t *bmsg);
 
 //  Remove all the entries related to the asset wiht asset_name from stats
-FTY_METRIC_COMPUTE_EXPORT void
-    cmstats_delete_asset (cmstats_t *self, const char *asset_name);
+void cmstats_delete_asset (cmstats_t *self, const char *asset_name);
 
 //  Polling handler - publish && reset the computed values if needed
-FTY_METRIC_COMPUTE_EXPORT void
-    cmstats_poll (cmstats_t *self);
+void cmstats_poll (cmstats_t *self);
 
 //  Save the cmstats to filename, return -1 if fail
-FTY_METRIC_COMPUTE_EXPORT int
-    cmstats_save (cmstats_t *self, const char *filename);
+int cmstats_save (cmstats_t *self, const char *filename);
 
 //  Load the cmstats from filename, return NULL if fail
-FTY_METRIC_COMPUTE_EXPORT cmstats_t *
-    cmstats_load (const char *filename);
+cmstats_t *cmstats_load (const char *filename);
 
 //  Self test of this class
 //  Note: Keep in sync with definition in fty_metric_compute_classes.h
-FTY_METRIC_COMPUTE_PRIVATE void
-    cmstats_test (bool verbose);
+void cmstats_test (bool verbose);
 
 //  @end
 

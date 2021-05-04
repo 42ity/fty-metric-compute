@@ -34,49 +34,39 @@ typedef struct _cmsteps_t cmsteps_t;
 
 //  @interface
 //  Create a new cmsteps
-FTY_METRIC_COMPUTE_EXPORT cmsteps_t *
-    cmsteps_new (void);
+cmsteps_t *cmsteps_new (void);
 
 //  Destroy the cmsteps
-FTY_METRIC_COMPUTE_EXPORT void
-    cmsteps_destroy (cmsteps_t **self_p);
+void cmsteps_destroy (cmsteps_t **self_p);
 
 //  Convert the time with prefix to number in seconds
 //      "42" -> 42
 //      "42s" -> 42
 //      "42m" -> 2520
-FTY_METRIC_COMPUTE_EXPORT int64_t
-    cmsteps_toint (const char *step);
+int64_t cmsteps_toint (const char *step);
 
 //  Return greatest common divisor of steps - 0 means no steps are in a list
-FTY_METRIC_COMPUTE_EXPORT uint32_t
-    cmsteps_gcd (cmsteps_t *self);
+uint32_t cmsteps_gcd (cmsteps_t *self);
 
 //  Put new step to the list, return -1 if fail (possibly wrong step)
-FTY_METRIC_COMPUTE_EXPORT int
-    cmsteps_put (cmsteps_t *self, const char* step);
+int cmsteps_put (cmsteps_t *self, const char* step);
 
 //  Get new step to the list. Return -1 in case of error, however positive
 //  result can be cast to uint32_t
-FTY_METRIC_COMPUTE_EXPORT int64_t
-    cmsteps_get (cmsteps_t *self, const char* step);
+int64_t cmsteps_get (cmsteps_t *self, const char* step);
 
 //  Return iterator to first item
-FTY_METRIC_COMPUTE_EXPORT uint32_t *
-    cmsteps_first (cmsteps_t *self);
+uint32_t *cmsteps_first (cmsteps_t *self);
 
 //  Return iterator to next item or NULL
-FTY_METRIC_COMPUTE_EXPORT uint32_t *
-    cmsteps_next (cmsteps_t *self);
+uint32_t *cmsteps_next (cmsteps_t *self);
 
 //  Return cursor
-FTY_METRIC_COMPUTE_EXPORT const void *
-    cmsteps_cursor (cmsteps_t *self);
+const void *cmsteps_cursor (cmsteps_t *self);
 
 //  Self test of this class
 //  Note: Keep in sync with definition in fty_metric_compute_classes.h
-FTY_METRIC_COMPUTE_PRIVATE void
-    cmsteps_test (bool verbose);
+void cmsteps_test (bool verbose);
 
 //  @end
 

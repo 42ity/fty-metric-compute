@@ -28,12 +28,10 @@ extern "C" {
 
 //  @interface
 //  fty_mc_server actor
-FTY_METRIC_COMPUTE_EXPORT void
-    fty_mc_server (zsock_t *pipe, void *args);
+void fty_mc_server (zsock_t *pipe, void *args);
 
 //  Self test of this class
-FTY_METRIC_COMPUTE_EXPORT void
-    fty_mc_server_test (bool verbose);
+void fty_mc_server_test (bool verbose);
 
 //  @end
 
