@@ -1,5 +1,5 @@
 /*  =========================================================================
-    fty_metric_compute_classes - private header file
+    fty_mc_server - Computation server implementation
 
     Copyright (C) 2016 - 2020 Eaton
 
@@ -19,33 +19,15 @@
     =========================================================================
 */
 
-#ifndef FTY_METRIC_COMPUTE_CLASSES_H_INCLUDED
-#define FTY_METRIC_COMPUTE_CLASSES_H_INCLUDED
+#pragma once
+#include <czmq.h>
 
-//  Platform definitions, must come first
+//  Add your own public definitions here, if you need them
+#define AGENT_CM_COUNT  "x-cm-count"    // how many measurements are there
+#define AGENT_CM_SUM    "x-cm-sum"      // sum of the values
+#define AGENT_CM_TYPE   "x-cm-type"     // type of computation (min/max/arithmetic_mean)
+#define AGENT_CM_STEP   "x-cm-step"     // computation step (in seconds)
+#define AGENT_CM_LASTTS "x-cm-last-ts"  // timestamp of last metric
 
-//  External API
-#include "../include/fty_metric_compute.h"
-
-//  Extra headers
-
-//  Internal API
-
-#include "cmstats.h"
-#include "cmsteps.h"
-
-//  *** To avoid double-definitions, only define if building without draft ***
-#ifndef FTY_METRIC_COMPUTE_BUILD_DRAFT_API
-
-//  Self test of this class.
-void cmstats_test (bool verbose);
-
-//  Self test of this class.
-void cmsteps_test (bool verbose);
-
-//  Self test for private classes
-void fty_metric_compute_private_selftest (bool verbose, const char *subtest);
-
-#endif // FTY_METRIC_COMPUTE_BUILD_DRAFT_API
-
-#endif
+//  fty_mc_server actor
+void fty_mc_server (zsock_t *pipe, void *args);

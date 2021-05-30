@@ -10,21 +10,47 @@ project(fty-metric-compute
 find_package(fty-cmake PATHS ${CMAKE_BINARY_DIR}/fty-cmake)
 ##############################################################################################################
 
-etn_target(exe ${PROJECT_NAME}
+etn_target(static ${PROJECT_NAME}-lib
     SOURCES
         src/cmstats.cc
+        src/cmstats.h
         src/cmsteps.cc
-        src/fty_metric_compute.cc
+        src/cmsteps.h
         src/fty_mc_server.cc
-    INCLUDE_DIRS
-        include
+        src/fty_mc_server.h
     USES_PRIVATE
         czmq
         fty_common_logging
         fty_proto
         fty_shm
-        libmlm
+        mlm
+    PRIVATE
 )
+
+##############################################################################################################
+
+etn_target(exe ${PROJECT_NAME}
+    SOURCES
+        src/fty_metric_compute.cc
+    USES_PRIVATE
+        ${PROJECT_NAME}-lib
+)
+
+##############################################################################################################
+
+etn_test_target(${PROJECT_NAME}-lib
+    SOURCES
+        tests/cmstats.cpp
+        tests/cmsteps.cpp
+        tests/main.cpp
+        tests/mc_server.cpp
+    PREPROCESSOR
+        -DCATCH_CONFIG_FAST_COMPILE
+    SUBDIR
+        tests
+)
+
+##############################################################################################################
 
 #install resources files
 set(MC_SETTINGS_DIR "${CMAKE_INSTALL_LOCALSTATEDIR}/lib/fty/${PROJECT_NAME}")
@@ -41,39 +67,3 @@ install(FILES "${PROJECT_BINARY_DIR}/resources/fty-metric-compute.service" DESTI
 # systemd tmpfiles
 configure_file("${PROJECT_SOURCE_DIR}/resources/fty-metric-compute.conf.in" "${PROJECT_BINARY_DIR}/resources/fty-metric-compute.conf" @ONLY)
 install(FILES "${PROJECT_BINARY_DIR}/resources/fty-metric-compute.conf" DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/tmpfiles.d/)
-
-if (BUILD_TESTING)
-
-    etn_test(${PROJECT_NAME}-test
-        SOURCES
-            tests/main.cc
-            src/cmstats.cc
-            src/cmsteps.cc
-            src/fty_mc_server.cc
-            src/fty_metric_compute_private_selftest.cc
-        INCLUDE_DIRS
-            include
-        PREPROCESSOR -DCATCH_CONFIG_FAST_COMPILE
-        USES
-            czmq
-            fty_common_logging
-            fty_proto
-            fty_shm
-            libmlm
-            Catch2::Catch2
-            stdc++fs
-            log4cplus
-    )
-
-    #copy selftest-ro for test
-    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/tests/selftest-ro DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-    file(MAKE_DIRECTORY  ${CMAKE_CURRENT_BINARY_DIR}/selftest-rw)
-
-    #enable coverage
-    etn_coverage(${PROJECT_NAME}-test)
-
-    #copy selftest-ro for test coverage
-    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/tests/selftest-ro DESTINATION ${CMAKE_BINARY_DIR})
-    file(MAKE_DIRECTORY  ${CMAKE_BINARY_DIR}/selftest-rw)
-
-endif()
