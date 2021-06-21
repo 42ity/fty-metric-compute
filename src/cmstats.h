@@ -20,27 +20,23 @@
     =========================================================================
 */
 
-#ifndef CMSTATS_H_INCLUDED
-#define CMSTATS_H_INCLUDED
+#pragma once
+#include <fty_proto.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+//  Structure of our class
+struct cmstats_t
+{
+    zhashx_t* stats; // a hash of FTY_PROTO metrics for "AVG/MIN/MAX" ready to be published
+};
 
-#ifndef CMSTATS_T_DEFINED
-typedef struct _cmstats_t cmstats_t;
-#define CMSTATS_T_DEFINED
-#endif
-
-//  @interface
 //  Create a new cmstats
-cmstats_t *cmstats_new (void);
+cmstats_t* cmstats_new(void);
 
 //  Destroy the cmstats
-void cmstats_destroy (cmstats_t **self_p);
+void cmstats_destroy(cmstats_t** self_p);
 
 //  Print the cmstats
-void cmstats_print (cmstats_t *self);
+void cmstats_print(cmstats_t* self);
 
 // Update statistics with "aggr_fun" and "step" for the incomming message "bmsg"
 // Caller is responsible for destroying the value that was returned.
@@ -62,28 +58,16 @@ void cmstats_print (cmstats_t *self);
 //         ret  - if we have just completed the computation for the interval and
 //                started new one. ( The old one is returned)
 //
-fty_proto_t* cmstats_put (cmstats_t *self, const char* aggr_fun, const char *sstep, uint32_t step, fty_proto_t *bmsg);
+fty_proto_t* cmstats_put(cmstats_t* self, const char* aggr_fun, const char* sstep, uint32_t step, fty_proto_t* bmsg);
 
 //  Remove all the entries related to the asset wiht asset_name from stats
-void cmstats_delete_asset (cmstats_t *self, const char *asset_name);
+void cmstats_delete_asset(cmstats_t* self, const char* asset_name);
 
 //  Polling handler - publish && reset the computed values if needed
-void cmstats_poll (cmstats_t *self);
+void cmstats_poll(cmstats_t* self);
 
 //  Save the cmstats to filename, return -1 if fail
-int cmstats_save (cmstats_t *self, const char *filename);
+int cmstats_save(cmstats_t* self, const char* filename);
 
 //  Load the cmstats from filename, return NULL if fail
-cmstats_t *cmstats_load (const char *filename);
-
-//  Self test of this class
-//  Note: Keep in sync with definition in fty_metric_compute_classes.h
-void cmstats_test (bool verbose);
-
-//  @end
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+cmstats_t* cmstats_load(const char* filename);
