@@ -430,7 +430,6 @@ void cmstats_poll(cmstats_t* self)
                         metric_time_new_s - last_metric_time_s);
 
                     // and compute the first value for the new interval
-                    //consumption = value * static_cast<double>(new_metric_time_s - metric_time_new_s) / (3600 * 1000);
                     consumption = last_metric_value * static_cast<double>(now_ms/1000 - metric_time_new_s) / (3600 * 1000);
                     if (consumption < 0) consumption = 0;
                     fty_proto_set_value(stat_msg, "%.6f", consumption);
