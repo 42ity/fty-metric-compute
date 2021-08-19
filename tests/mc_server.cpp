@@ -316,7 +316,7 @@ TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
         char* consumption = nullptr;
         int r = asprintf(&consumption, "%.6f", (100.0 * 10) / 3600 / 1000);
         REQUIRE(r != -1); // make gcc @ rhel happy
-        printf("--->10(1): %s <> %s\n", fty_proto_value(bmsg), consumption);
+        //printf("--->10(1): %s <> %s\n", fty_proto_value(bmsg), consumption);
         CHECK(streq(fty_proto_value(bmsg), consumption));
         zstr_free(&consumption);
         fty_proto_destroy(&bmsg);
@@ -404,10 +404,10 @@ TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
         fty_proto_destroy(&bmsg);
     }
 
-    zclock_sleep(1000);
     zactor_destroy(&cm_server);
     zclock_sleep(5000);
 
+    mlm_client_destroy(&producer);
     zactor_destroy(&server);
     CHECK(zfile_exists("state.zpl"));
     unlink("state.zpl");
