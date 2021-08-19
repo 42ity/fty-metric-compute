@@ -175,6 +175,7 @@ void fty_metric_compute_metric_pull(zsock_t* pipe, void* args)
                     "|^power\\.default"
                     "|current\\.(output|input)\\.L(1|2|3)"
                     "|voltage\\.(output|input)\\.L(1|2|3)-N"
+                    "|voltage\\.input\\.(1|2)"  // For ATS only
                     "|.*temperature|.*humidity)"
                     "((?!_arithmetic_mean|_max_|_min_|_consumption_).)*";
                 fty::shm::read_metrics(".*", pattern, result);
