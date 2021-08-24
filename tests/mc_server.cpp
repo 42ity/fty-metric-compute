@@ -354,7 +354,7 @@ TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
         zstr_free(&consumption);
         fty_proto_destroy(&bmsg);
     }
-    zclock_sleep(3900);
+    zclock_sleep(4000);
 
     // T+25s
     {
