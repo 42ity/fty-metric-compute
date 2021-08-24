@@ -259,17 +259,6 @@ TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
 
     static const char* endpoint = "inproc://cm-server-test";
 
-    // XXX: the test is sensitive on timing!!!
-    //     so it must start at the beggining of the 30th second in minute (00, 30, ...)
-    //     other option is to not test in second precision,
-    //     which will increase the time of make check far beyond
-    //     what developers would accept ;-)
-    {
-        int64_t now_ms = zclock_time();
-        int64_t sl     = 30000 - (now_ms % 30000);
-        zclock_sleep(int(sl));
-    }
-
     // create broker
     zactor_t* server = zactor_new(mlm_server, const_cast<char*>("Malamute"));
     zstr_sendx(server, "BIND", endpoint, nullptr);
@@ -288,6 +277,17 @@ TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
     zstr_sendx(cm_server, "CREATE_PULL", nullptr);
     zstr_sendx(cm_server, "CONSUMER", FTY_PROTO_STREAM_METRICS, ".*", nullptr);
     zclock_sleep(500);
+
+    // XXX: the test is sensitive on timing!!!
+    //     so it must start at the beggining of the 30th second in minute (00, 30, ...)
+    //     other option is to not test in second precision,
+    //     which will increase the time of make check far beyond
+    //     what developers would accept ;-)
+    {
+        int64_t now_ms = zclock_time();
+        int64_t sl     = 30000 - (now_ms % 30000);
+        zclock_sleep(int(sl));
+    }
 
     // T+0s
     //printf("-----> start\n");
@@ -314,7 +314,7 @@ TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
         const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
         CHECK(streq(type, "consumption"));
         char* consumption = nullptr;
-        int r = asprintf(&consumption, "%.6f", (100.0 * 10) / 3600 / 1000);
+        int r = asprintf(&consumption, "%.1f", 100.0 * 10);
         REQUIRE(r != -1); // make gcc @ rhel happy
         //printf("--->10(1): %s <> %s\n", fty_proto_value(bmsg), consumption);
         CHECK(streq(fty_proto_value(bmsg), consumption));
@@ -347,14 +347,14 @@ TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
         const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
         CHECK(streq(type, "consumption"));
         char* consumption = nullptr;
-        int r = asprintf(&consumption, "%.6f", (100.0 * 5 + 150.0 * 5) / 3600 / 1000);
+        int r = asprintf(&consumption, "%.1f", 100.0 * 5 + 150.0 * 5);
         REQUIRE(r != -1); // make gcc @ rhel happy
         //printf("--->10(2): %s <> %s\n", fty_proto_value(bmsg), consumption);
-        CHECK(streq(fty_proto_value(bmsg), consumption/*"0.000347"*/));
+        CHECK(streq(fty_proto_value(bmsg), consumption));
         zstr_free(&consumption);
         fty_proto_destroy(&bmsg);
     }
-    zclock_sleep(4000);
+    zclock_sleep(3900);
 
     // T+25s
     {
@@ -380,7 +380,7 @@ TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
         const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
         CHECK(streq(type, "consumption"));
         char* consumption = nullptr;
-        int r = asprintf(&consumption, "%.6f", (150.0 * 5 + 200.0 * 5) / 3600 / 1000);
+        int r = asprintf(&consumption, "%.1f", 150.0 * 5 + 200.0 * 5);
         REQUIRE(r != -1); // make gcc @ rhel happy
         //printf("--->10(3): %s <> %s\n", fty_proto_value(bmsg), consumption);
         CHECK(streq(fty_proto_value(bmsg), consumption));
@@ -394,13 +394,12 @@ TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
         const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
         CHECK(streq(type, "consumption"));
         char* consumption = nullptr;
-        int r = asprintf(&consumption, "%.6f",
-            ceil(((100.0 * 15 + 150.0 * 10 + 200.0 * 5) / 3600 / 1000) * 1000000) / 1000000);
+        int r = asprintf(&consumption, "%.1f",
+            ceil((100.0 * 15 + 150.0 * 10 + 200.0 * 5) * 10) / 10);
         REQUIRE(r != -1); // make gcc @ rhel happy
         //printf("--->30: %s <> %s\n", fty_proto_value(bmsg), consumption);
         CHECK(streq(fty_proto_value(bmsg), consumption));
         zstr_free(&consumption);
-        CHECK(streq(fty_proto_value(bmsg), "0.001112"));
         fty_proto_destroy(&bmsg);
     }
 

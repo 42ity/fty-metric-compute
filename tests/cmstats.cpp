@@ -106,7 +106,8 @@ TEST_CASE("cmstats test", "[cmstats]")
     stats = cmstats_put(self, "consumption", "10s", 10, bmsg);
     REQUIRE(stats);
 
-    r = asprintf(&xxx, "%.6f", (100.99 * 6 + 42.1 * 3) / 3600 / 1000);
+    r = asprintf(&xxx, "%.1f", 100.99 * 6 + 42.1 * 3);
+    //printf("---> %s <> %s\n", fty_proto_value(stats), xxx);
     REQUIRE(r != -1); // make gcc @ rhel happy
     CHECK(streq(fty_proto_value(stats), xxx));
     zstr_free(&xxx);

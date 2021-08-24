@@ -150,13 +150,13 @@ static bool s_consumption(const fty_proto_t* bmsg, fty_proto_t* stat_msg)
     double last_metric_value = atof(fty_proto_aux_string(stat_msg, AGENT_CM_SUM, ""));
     // Save new value in the sum aux dictionary
     fty_proto_aux_insert(stat_msg, AGENT_CM_SUM, "%s", fty_proto_value(const_cast<fty_proto_t*>(bmsg)));
-    double inc = last_metric_value * static_cast<double>(now_s - last_metric_time_s) / (3600 * 1000);
+    double inc = last_metric_value * static_cast<double>(now_s - last_metric_time_s);
     if (inc > 0) consumption += inc;
-    log_debug("s_consumption: update consumption %s: %.6f (inc=%.6f) %" PRIu64"(%s)-%" PRIu64"(%s) %" PRIu64,
+    log_debug("s_consumption: update consumption %s: %.1f (inc=%.1f) %" PRIu64"(%s)-%" PRIu64"(%s) %" PRIu64,
         fty_proto_name(const_cast<fty_proto_t*>(bmsg)), consumption, inc, now_s, getTimeStampStr(now_s).c_str(),
         last_metric_time_s, getTimeStampStr(last_metric_time_s).c_str(), now_s - last_metric_time_s);
     // Sample was accepted
-    fty_proto_set_value(stat_msg, "%.6f", consumption);
+    fty_proto_set_value(stat_msg, "%.1f", consumption);
     fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, now_s);
     return true;
 }
@@ -247,9 +247,9 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
         // Power consumption treatment
         if (streq(addr_fun, "consumption")) {
             double consumption = 0.0;
-            fty_proto_set_value(stat_msg, "%.6f", consumption);
+            fty_proto_set_value(stat_msg, "%.1f", consumption);
             fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, now_ms/1000);
-            fty_proto_set_unit(stat_msg, "kWh");
+            fty_proto_set_unit(stat_msg, "Ws");
             log_debug("cmstats_put: Add new %s - %" PRIu64 "(%s)", skey.c_str(), now_ms/1000,
                 getTimeStampStr(now_ms/1000).c_str());
         }
@@ -300,21 +300,21 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
                 fty_proto_aux_insert(stat_msg, AGENT_CM_SUM, "%s", fty_proto_value(bmsg));
                 // Compute last value missing for the returned interval
                 double consumption = atof(fty_proto_value(stat_msg));
-                double inc = last_metric_value * static_cast<double>(delta) / (3600 * 1000);
-                log_debug("cmstats_put: End consumption for %s: inc=%.6f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, skey.c_str(), inc,
+                double inc = last_metric_value * static_cast<double>(delta);
+                log_debug("cmstats_put: End consumption for %s: inc=%.1f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, skey.c_str(), inc,
                     metric_time_new_s, getTimeStampStr(metric_time_new_s).c_str(), last_metric_time_s, getTimeStampStr(last_metric_time_s).c_str(),
                     metric_time_new_s - last_metric_time_s);
                 consumption += inc;
-                fty_proto_set_value(ret, "%.6f", consumption);
+                fty_proto_set_value(ret, "%.1f", consumption);
 
                 // and compute the first value for the new interval
                 double value = atof(fty_proto_value(bmsg));
-                consumption = value * static_cast<double>(now_ms/1000 - metric_time_new_s) / (3600 * 1000);
+                consumption = value * static_cast<double>(now_ms/1000 - metric_time_new_s);
                 if (consumption < 0) consumption = 0;
-                fty_proto_set_value(stat_msg, "%.6f", consumption);
+                fty_proto_set_value(stat_msg, "%.1f", consumption);
                 fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, now_ms/1000);
                 fty_proto_aux_insert(stat_msg, AGENT_CM_COUNT, "1");
-                log_debug("cmstats_put: Update new consumption for %s: %.6f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, skey.c_str(), consumption,
+                log_debug("cmstats_put: Update new consumption for %s: %.1f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, skey.c_str(), consumption,
                     now_ms/1000, getTimeStampStr(now_ms/1000).c_str(), metric_time_new_s, getTimeStampStr(metric_time_new_s).c_str(),
                     now_ms/1000 - metric_time_new_s);
 
@@ -422,19 +422,19 @@ void cmstats_poll(cmstats_t* self)
                     double last_metric_value = atof(fty_proto_aux_string(stat_msg, AGENT_CM_SUM, ""));
                     // Compute last value missing for the end interval
                     double consumption = atof(fty_proto_value(stat_msg));
-                    double inc = last_metric_value * static_cast<double>(delta) / (3600 * 1000);
+                    double inc = last_metric_value * static_cast<double>(delta);
                     consumption += inc;
-                    fty_proto_set_value(ret, "%.6f", consumption);
-                    log_debug("cmstats_poll: End consumption for %s: new=%.6f inc=%.6f %" PRIu64"(%s)-%" PRIu64 "(%s) %" PRIu64, key, consumption, inc,
+                    fty_proto_set_value(ret, "%.1f", consumption);
+                    log_debug("cmstats_poll: End consumption for %s: new=%.1f inc=%.1f %" PRIu64"(%s)-%" PRIu64 "(%s) %" PRIu64, key, consumption, inc,
                         metric_time_new_s, getTimeStampStr(metric_time_new_s).c_str(), last_metric_time_s, getTimeStampStr(last_metric_time_s).c_str(),
                         metric_time_new_s - last_metric_time_s);
 
                     // and compute the first value for the new interval
-                    consumption = last_metric_value * static_cast<double>(now_ms/1000 - metric_time_new_s) / (3600 * 1000);
+                    consumption = last_metric_value * static_cast<double>(now_ms/1000 - metric_time_new_s);
                     if (consumption < 0) consumption = 0;
-                    fty_proto_set_value(stat_msg, "%.6f", consumption);
+                    fty_proto_set_value(stat_msg, "%.1f", consumption);
                     fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, now_ms/1000);
-                    log_debug("cmstats_poll: Update new consumption for %s: %.6f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, key, consumption,
+                    log_debug("cmstats_poll: Update new consumption for %s: %.1f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, key, consumption,
                         now_ms/1000, getTimeStampStr(now_ms/1000).c_str(), metric_time_new_s, getTimeStampStr(metric_time_new_s).c_str(),
                         now_ms/1000 - metric_time_new_s);
                 }
