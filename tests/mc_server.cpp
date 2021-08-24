@@ -245,6 +245,13 @@ TEST_CASE("fty mc server test", "[fty_mc_server]")
     fty_shm_delete_test_dir();
 }
 
+void wait_time(int64_t start_ms, int time_s) {
+    int64_t now_ms = zclock_time();
+    int64_t sl = start_ms + time_s * 1000 - now_ms;
+    //printf("-----> Wait %" PRIu64"\n", sl);
+    zclock_sleep(int(sl));
+}
+
 TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
 {
     // The test will last 30 sec. During this period, the power is changing twice: first after
@@ -290,6 +297,7 @@ TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
     }
 
     // T+0s
+    int64_t start_ms = zclock_time();
     //printf("-----> start\n");
     {
         //printf("---------> Send 0\n");
@@ -304,9 +312,9 @@ TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
             "UNIT");
         mlm_client_send(producer, "realpower.default@DEV1", &msg);
     }
-    zclock_sleep(11000);
+    wait_time(start_ms, 12);
 
-    // T+11s
+    // T+12s
     // now we should have the first 10s consumption value published
     {
         fty_proto_t* bmsg = nullptr;
@@ -321,7 +329,7 @@ TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
         zstr_free(&consumption);
         fty_proto_destroy(&bmsg);
     }
-    zclock_sleep(4000);
+    wait_time(start_ms, 15);
 
     // T+15s
     {
@@ -337,9 +345,9 @@ TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
             "UNIT");
         mlm_client_send(producer, "realpower.default@DEV1", &msg);
     }
-    zclock_sleep(6000);
+    wait_time(start_ms, 22);
 
-    // T+21s
+    // T+22s
     // now we should have the second 10s consumption value published
     {
         fty_proto_t* bmsg = nullptr;
@@ -354,7 +362,7 @@ TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
         zstr_free(&consumption);
         fty_proto_destroy(&bmsg);
     }
-    zclock_sleep(4000);
+    wait_time(start_ms, 25);
 
     // T+25s
     {
@@ -370,9 +378,9 @@ TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
             "UNIT");
         mlm_client_send (producer, "realpower.default@DEV1", &msg);
     }
-    zclock_sleep(6000);
+    wait_time(start_ms, 32);
 
-    // T+31s
+    // T+32s
     // now we should have the third 10s consumption value published
     {
         fty_proto_t* bmsg = nullptr;
