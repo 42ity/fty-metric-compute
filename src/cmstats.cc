@@ -27,6 +27,7 @@
 #include <fty_log.h>
 #include <fty_proto.h>
 #include <fty_shm.h>
+#include <ctime>
 
 typedef void(compute_fn)(const fty_proto_t* bmsg, fty_proto_t* stat_msg);
 
@@ -113,6 +114,53 @@ static bool s_arithmetic_mean(const fty_proto_t* bmsg, fty_proto_t* stat_msg)
     return true;
 }
 
+// transform timestamp to readable string format
+// \param tm_s - input timestamp in sec
+std::string getTimeStampStr(const uint64_t tm_s) {
+    std::string res;
+    char buffer[32];
+    std::strftime(buffer, sizeof(buffer), "%d/%m/%Y-%H:%M:%S",
+        std::localtime(reinterpret_cast<const long int*>(&tm_s)));
+    res = buffer;
+    return res;
+}
+
+// compute consumption value
+// \param bmsg - input new metric
+// \param stat_msg - output statistic metric
+static bool s_consumption(const fty_proto_t* bmsg, fty_proto_t* stat_msg)
+{
+    assert(bmsg);
+    assert(stat_msg);
+
+    double value = atof(fty_proto_value(const_cast<fty_proto_t*>(bmsg)));
+
+    if (std::isnan(value)) {
+        log_warning("s_consumption: isnan value(%s) for %s@%s, skipping",
+            fty_proto_value(const_cast<fty_proto_t*>(bmsg)), fty_proto_type(const_cast<fty_proto_t*>(bmsg)),
+            fty_proto_name(const_cast<fty_proto_t*>(bmsg)));
+        return false;
+    }
+
+    // Compute value for the current interval
+    double consumption = atof(fty_proto_value(stat_msg));
+    uint64_t now_s = uint64_t(zclock_time()/1000);
+    uint64_t last_metric_time_s = fty_proto_aux_number(stat_msg, AGENT_CM_LASTTS, 0);
+    // Get last power received which is saved in the sum aux dictionary
+    double last_metric_value = atof(fty_proto_aux_string(stat_msg, AGENT_CM_SUM, ""));
+    // Save new value in the sum aux dictionary
+    fty_proto_aux_insert(stat_msg, AGENT_CM_SUM, "%s", fty_proto_value(const_cast<fty_proto_t*>(bmsg)));
+    double inc = last_metric_value * static_cast<double>(now_s - last_metric_time_s);
+    if (inc > 0) consumption += inc;
+    log_debug("s_consumption: update consumption %s: %.1f (inc=%.1f) %" PRIu64"(%s)-%" PRIu64"(%s) %" PRIu64,
+        fty_proto_name(const_cast<fty_proto_t*>(bmsg)), consumption, inc, now_s, getTimeStampStr(now_s).c_str(),
+        last_metric_time_s, getTimeStampStr(last_metric_time_s).c_str(), now_s - last_metric_time_s);
+    // Sample was accepted
+    fty_proto_set_value(stat_msg, "%.1f", consumption);
+    fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, now_s);
+    return true;
+}
+
 //  --------------------------------------------------------------------------
 //  Create a new cmstats
 
@@ -178,8 +226,10 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
     char* key;
     int   r = asprintf(&key, "%s_%s_%s@%s", fty_proto_type(bmsg), addr_fun, sstep, fty_proto_name(bmsg));
     assert(r != -1); // make gcc @ rhel happy
+    std::string skey(key);
+    zstr_free(&key);
 
-    fty_proto_t* stat_msg = reinterpret_cast<fty_proto_t*>(zhashx_lookup(self->stats, key));
+    fty_proto_t* stat_msg = reinterpret_cast<fty_proto_t*>(zhashx_lookup(self->stats, skey.c_str()));
 
     // handle the first insert
     if (!stat_msg) {
@@ -193,21 +243,32 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
         fty_proto_aux_insert(stat_msg, AGENT_CM_STEP, "%" PRIu32, step);
         fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, fty_proto_time(bmsg));
         fty_proto_set_ttl(stat_msg, 2 * step);
-        zhashx_insert(self->stats, key, stat_msg);
-        zstr_free(&key);
+
+        // Power consumption treatment
+        if (streq(addr_fun, "consumption")) {
+            double consumption = 0.0;
+            fty_proto_set_value(stat_msg, "%.1f", consumption);
+            fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, now_ms/1000);
+            fty_proto_set_unit(stat_msg, "Ws");
+            log_debug("cmstats_put: Add new %s - %" PRIu64 "(%s)", skey.c_str(), now_ms/1000,
+                getTimeStampStr(now_ms/1000).c_str());
+        }
+
+        zhashx_insert(self->stats, skey.c_str(), stat_msg);
         fty_proto_destroy(&stat_msg);
         return nullptr;
     }
-    zstr_free(&key);
 
     // there is already some value
     // so check if it's not already older than we need
     uint64_t metric_time_s      = fty_proto_time(stat_msg);
     uint64_t new_metric_time_s  = fty_proto_time(bmsg);
     uint64_t last_metric_time_s = fty_proto_aux_number(stat_msg, AGENT_CM_LASTTS, 0);
-    if (new_metric_time_s <= last_metric_time_s)
+    if (new_metric_time_s <= last_metric_time_s) {
+        //log_debug("cmstats_put: Message date too earlier for %s: %" PRIu64 "(%s)", skey.c_str(),
+        //    last_metric_time_s, getTimeStampStr(last_metric_time_s).c_str());
         return nullptr;
-
+    }
     // it is, return the stat value and "restart" the computation
     if (((now_ms - (metric_time_s * 1000)) >= (step * 1000))) {
         // duplicate "old" value for the interval, that has just ended
@@ -217,10 +278,48 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
         // to compute the statistics for the next interval
         fty_proto_set_time(stat_msg, metric_time_new_s);
         fty_proto_aux_insert(stat_msg, AGENT_CM_COUNT, "1");
-        fty_proto_aux_insert(stat_msg, AGENT_CM_SUM, "%s", fty_proto_value(bmsg));
-        fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, new_metric_time_s);
 
-        fty_proto_set_value(stat_msg, "%s", fty_proto_value(bmsg));
+        // If it is NOT power consumption data
+        if (!streq(addr_fun, "consumption")) {
+            fty_proto_aux_insert(stat_msg, AGENT_CM_SUM, "%s", fty_proto_value(bmsg));
+            fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, new_metric_time_s);
+        }
+        // Else it is power consumption data
+        else {
+            // If at least one measure of power available
+            if (last_metric_time_s != 0) {
+                // Compute time between last measure and end of interval
+                int64_t delta = static_cast<int64_t>(metric_time_new_s - last_metric_time_s);
+                // If last measure before the current step, time is equal to the complete interval
+                // (power don't change during the interval period)
+                if (delta > static_cast<int64_t>(step)) delta = static_cast<int64_t>(step);
+                else if (delta < 0) delta = 0;
+                // Get last power received which is saved in the sum aux dictionary
+                double last_metric_value = atof(fty_proto_aux_string(stat_msg, AGENT_CM_SUM, ""));
+                // Save new value in the sum aux dictionary
+                fty_proto_aux_insert(stat_msg, AGENT_CM_SUM, "%s", fty_proto_value(bmsg));
+                // Compute last value missing for the returned interval
+                double consumption = atof(fty_proto_value(stat_msg));
+                double inc = last_metric_value * static_cast<double>(delta);
+                log_debug("cmstats_put: End consumption for %s: inc=%.1f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, skey.c_str(), inc,
+                    metric_time_new_s, getTimeStampStr(metric_time_new_s).c_str(), last_metric_time_s, getTimeStampStr(last_metric_time_s).c_str(),
+                    metric_time_new_s - last_metric_time_s);
+                consumption += inc;
+                fty_proto_set_value(ret, "%.1f", consumption);
+
+                // and compute the first value for the new interval
+                double value = atof(fty_proto_value(bmsg));
+                consumption = value * static_cast<double>(now_ms/1000 - metric_time_new_s);
+                if (consumption < 0) consumption = 0;
+                fty_proto_set_value(stat_msg, "%.1f", consumption);
+                fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, now_ms/1000);
+                fty_proto_aux_insert(stat_msg, AGENT_CM_COUNT, "1");
+                log_debug("cmstats_put: Update new consumption for %s: %.1f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, skey.c_str(), consumption,
+                    now_ms/1000, getTimeStampStr(now_ms/1000).c_str(), metric_time_new_s, getTimeStampStr(metric_time_new_s).c_str(),
+                    now_ms/1000 - metric_time_new_s);
+
+            }
+        }
         return ret;
     }
 
@@ -232,17 +331,21 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
         value_accepted = s_max(bmsg, stat_msg);
     else if (streq(addr_fun, "arithmetic_mean"))
         value_accepted = s_arithmetic_mean(bmsg, stat_msg);
+    else if (streq(addr_fun, "consumption")) {
+        log_debug("cmstats_put: Update consumption for %s", skey.c_str());
+        value_accepted = s_consumption(bmsg, stat_msg);
+    }
     // fail otherwise
     else
         assert(false);
 
     // increase the counter
     if (value_accepted) {
-        fty_proto_aux_insert(
-            stat_msg, AGENT_CM_COUNT, "%" PRIu64, fty_proto_aux_number(stat_msg, AGENT_CM_COUNT, 0) + 1);
-        fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, new_metric_time_s);
+        fty_proto_aux_insert(stat_msg, AGENT_CM_COUNT, "%" PRIu64, fty_proto_aux_number(stat_msg, AGENT_CM_COUNT, 0) + 1);
+        if (!streq(addr_fun, "consumption")) {
+            fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, new_metric_time_s);
+        }
     }
-
     return nullptr;
 }
 
@@ -302,23 +405,59 @@ void cmstats_poll(cmstats_t* self)
             // Yes, it should!
             fty_proto_t* ret = fty_proto_dup(stat_msg);
             log_debug("cmstats:\tPublishing message wiht subject=%s", key);
-            fty_proto_print(ret);
 
-            if (fty_proto_aux_number(ret, AGENT_CM_COUNT, 0) == 0) {
-                log_info("No metrics for this step, do not publish");
-            } else {
+            bool bPublish = true;
+            // If consumption data, compute last value missing for the end of interval
+            if (streq(fty_proto_aux_string(stat_msg, AGENT_CM_TYPE, ""), "consumption")) {
+                uint64_t last_metric_time_s = fty_proto_aux_number(stat_msg, AGENT_CM_LASTTS, 0);
+                // If we have receive a least one power measure
+                if (last_metric_time_s != 0) {
+                    // Compute time between last measure and end of interval
+                    int64_t delta = static_cast<int64_t>(metric_time_new_s - last_metric_time_s);
+                    // If last measure before the current step, time is equal to the complete interval
+                    // (power don't change during the interval period)
+                    if (delta > static_cast<int64_t>(step)) delta = static_cast<int64_t>(step);
+                    else if (delta < 0) delta = 0;
+                    // Get last power received which is saved in the sum aux dictionary
+                    double last_metric_value = atof(fty_proto_aux_string(stat_msg, AGENT_CM_SUM, ""));
+                    // Compute last value missing for the end interval
+                    double consumption = atof(fty_proto_value(stat_msg));
+                    double inc = last_metric_value * static_cast<double>(delta);
+                    consumption += inc;
+                    fty_proto_set_value(ret, "%.1f", consumption);
+                    log_debug("cmstats_poll: End consumption for %s: new=%.1f inc=%.1f %" PRIu64"(%s)-%" PRIu64 "(%s) %" PRIu64, key, consumption, inc,
+                        metric_time_new_s, getTimeStampStr(metric_time_new_s).c_str(), last_metric_time_s, getTimeStampStr(last_metric_time_s).c_str(),
+                        metric_time_new_s - last_metric_time_s);
+
+                    // and compute the first value for the new interval
+                    consumption = last_metric_value * static_cast<double>(now_ms/1000 - metric_time_new_s);
+                    if (consumption < 0) consumption = 0;
+                    fty_proto_set_value(stat_msg, "%.1f", consumption);
+                    fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, now_ms/1000);
+                    log_debug("cmstats_poll: Update new consumption for %s: %.1f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, key, consumption,
+                        now_ms/1000, getTimeStampStr(now_ms/1000).c_str(), metric_time_new_s, getTimeStampStr(metric_time_new_s).c_str(),
+                        now_ms/1000 - metric_time_new_s);
+                }
+            }
+            else {
+                if (fty_proto_aux_number(ret, AGENT_CM_COUNT, 0) == 0) {
+                    log_info("No metrics for this step, do not publish");
+                    bPublish = false;
+                }
+                // As we do not receive any message, start from ZERO
+                fty_proto_aux_insert(stat_msg, AGENT_CM_SUM, "0");
+                fty_proto_set_value(stat_msg, "0");
+            }
+            fty_proto_set_time(stat_msg, metric_time_new_s);
+            fty_proto_aux_insert(stat_msg, AGENT_CM_COUNT, "0");
+            fty_proto_print(ret);
+            if (bPublish) {
                 int r = fty::shm::write_metric(ret);
                 if (r == -1) {
                     log_error("cmstats:\tCannot publish statistics");
                 }
             }
             fty_proto_destroy(&ret);
-
-            fty_proto_set_time(stat_msg, metric_time_new_s);
-            fty_proto_aux_insert(stat_msg, AGENT_CM_COUNT, "0"); // As we do not receive any message, start from ZERO
-            fty_proto_aux_insert(stat_msg, AGENT_CM_SUM, "0");   // As we do not receive any message, start from ZERO
-
-            fty_proto_set_value(stat_msg, "0"); // As we do not receive any message, start from ZERO
         }
     }
 }

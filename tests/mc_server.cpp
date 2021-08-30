@@ -4,7 +4,7 @@
 #include <fty_shm.h>
 #include <malamute.h>
 
-TEST_CASE("fty mc server test")
+TEST_CASE("fty mc server test", "[fty_mc_server]")
 {
     CHECK(fty_shm_set_test_dir(".") == 0);
 
@@ -239,6 +239,182 @@ TEST_CASE("fty mc server test")
     //    mlm_client_destroy (&consumer_5s);
     //    mlm_client_destroy (&consumer_1s);
     //    mlm_client_destroy (&producer);
+    zactor_destroy(&server);
+    CHECK(zfile_exists("state.zpl"));
+    unlink("state.zpl");
+    fty_shm_delete_test_dir();
+}
+
+void wait_time(int64_t start_ms, int time_s) {
+    int64_t now_ms = zclock_time();
+    int64_t sl = start_ms + time_s * 1000 - now_ms;
+    //printf("-----> Wait %" PRIu64"\n", sl);
+    zclock_sleep(int(sl));
+}
+
+TEST_CASE("fty mc server test with consumption", "[fty_mc_server_consumption]")
+{
+    // The test will last 30 sec. During this period, the power is changing twice: first after
+    // 15 sec and a second time after 15 sec again. We should receive the consumption each 10s
+    // and at the end, we should have the consumption of the 30 sec period in addition.
+
+    CHECK(fty_shm_set_test_dir(".") == 0);
+
+    unlink("state.zpl");
+
+    fty_shm_set_default_polling_interval(10);
+
+    static const char* endpoint = "inproc://cm-server-test";
+
+    // create broker
+    zactor_t* server = zactor_new(mlm_server, const_cast<char*>("Malamute"));
+    zstr_sendx(server, "BIND", endpoint, nullptr);
+
+    mlm_client_t *producer = mlm_client_new ();
+    mlm_client_connect (producer, endpoint, 5000, "publisher");
+    mlm_client_set_producer (producer, FTY_PROTO_STREAM_METRICS);
+
+    zactor_t* cm_server = zactor_new(fty_mc_server, const_cast<char*>("fty-mc-server"));
+
+    zstr_sendx(cm_server, "TYPES", "consumption", nullptr);
+    zstr_sendx(cm_server, "STEPS", "10s", "30s", nullptr);
+    zstr_sendx(cm_server, "DIR", ".", nullptr);
+    zstr_sendx(cm_server, "CONNECT", endpoint, nullptr);
+    zstr_sendx(cm_server, "PRODUCER", FTY_PROTO_STREAM_METRICS, nullptr);
+    zstr_sendx(cm_server, "CREATE_PULL", nullptr);
+    zstr_sendx(cm_server, "CONSUMER", FTY_PROTO_STREAM_METRICS, ".*", nullptr);
+    zclock_sleep(500);
+
+    // XXX: the test is sensitive on timing!!!
+    //     so it must start at the beggining of the 30th second in minute (00, 30, ...)
+    //     other option is to not test in second precision,
+    //     which will increase the time of make check far beyond
+    //     what developers would accept ;-)
+    {
+        int64_t now_ms = zclock_time();
+        int64_t sl     = 30000 - (now_ms % 30000);
+        zclock_sleep(int(sl));
+    }
+
+    // T+0s
+    int64_t start_ms = zclock_time();
+    //printf("-----> start\n");
+    {
+        //printf("---------> Send 0\n");
+        CHECK(fty::shm::write_metric("DEV1", "realpower.default", "100", "UNIT", 60) == 0);
+        zmsg_t *msg = fty_proto_encode_metric(
+            nullptr,
+            static_cast<uint64_t>(time(nullptr)),
+            10,
+            "realpower.default",
+            "DEV1",
+            "100",
+            "UNIT");
+        mlm_client_send(producer, "realpower.default@DEV1", &msg);
+    }
+    wait_time(start_ms, 12);
+
+    // T+12s
+    // now we should have the first 10s consumption value published
+    {
+        fty_proto_t* bmsg = nullptr;
+        fty::shm::read_metric("DEV1", "realpower.default_consumption_10s", &bmsg);
+        const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
+        CHECK(streq(type, "consumption"));
+        char* consumption = nullptr;
+        int r = asprintf(&consumption, "%.1f", 100.0 * 10);
+        REQUIRE(r != -1); // make gcc @ rhel happy
+        //printf("--->10(1): %s <> %s\n", fty_proto_value(bmsg), consumption);
+        CHECK(streq(fty_proto_value(bmsg), consumption));
+        zstr_free(&consumption);
+        fty_proto_destroy(&bmsg);
+    }
+    wait_time(start_ms, 15);
+
+    // T+15s
+    {
+        //printf("---------> Send 1\n");
+        CHECK(fty::shm::write_metric("DEV1", "realpower.default", "150", "UNIT", 60) == 0);
+        zmsg_t *msg = fty_proto_encode_metric(
+            nullptr,
+            static_cast<uint64_t>(time(nullptr)),
+            10,
+            "realpower.default",
+            "DEV1",
+            "150",
+            "UNIT");
+        mlm_client_send(producer, "realpower.default@DEV1", &msg);
+    }
+    wait_time(start_ms, 22);
+
+    // T+22s
+    // now we should have the second 10s consumption value published
+    {
+        fty_proto_t* bmsg = nullptr;
+        fty::shm::read_metric("DEV1", "realpower.default_consumption_10s", &bmsg);
+        const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
+        CHECK(streq(type, "consumption"));
+        char* consumption = nullptr;
+        int r = asprintf(&consumption, "%.1f", 100.0 * 5 + 150.0 * 5);
+        REQUIRE(r != -1); // make gcc @ rhel happy
+        //printf("--->10(2): %s <> %s\n", fty_proto_value(bmsg), consumption);
+        CHECK(streq(fty_proto_value(bmsg), consumption));
+        zstr_free(&consumption);
+        fty_proto_destroy(&bmsg);
+    }
+    wait_time(start_ms, 25);
+
+    // T+25s
+    {
+        //printf("---------> Send 2\n");
+        CHECK(fty::shm::write_metric("DEV1", "realpower.default", "200", "UNIT", 60) == 0);
+        zmsg_t *msg = fty_proto_encode_metric (
+            nullptr,
+            static_cast<uint64_t>(time(nullptr)),
+            10,
+            "realpower.default",
+            "DEV1",
+            "200",
+            "UNIT");
+        mlm_client_send (producer, "realpower.default@DEV1", &msg);
+    }
+    wait_time(start_ms, 32);
+
+    // T+32s
+    // now we should have the third 10s consumption value published
+    {
+        fty_proto_t* bmsg = nullptr;
+        fty::shm::read_metric("DEV1", "realpower.default_consumption_10s", &bmsg);
+        const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
+        CHECK(streq(type, "consumption"));
+        char* consumption = nullptr;
+        int r = asprintf(&consumption, "%.1f", 150.0 * 5 + 200.0 * 5);
+        REQUIRE(r != -1); // make gcc @ rhel happy
+        //printf("--->10(3): %s <> %s\n", fty_proto_value(bmsg), consumption);
+        CHECK(streq(fty_proto_value(bmsg), consumption));
+        zstr_free(&consumption);
+        fty_proto_destroy(&bmsg);
+    }
+    // and we should have the first 30s consumption value published
+    {
+        fty_proto_t* bmsg = nullptr;
+        fty::shm::read_metric("DEV1", "realpower.default_consumption_30s", &bmsg);
+        const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
+        CHECK(streq(type, "consumption"));
+        char* consumption = nullptr;
+        int r = asprintf(&consumption, "%.1f",
+            ceil((100.0 * 15 + 150.0 * 10 + 200.0 * 5) * 10) / 10);
+        REQUIRE(r != -1); // make gcc @ rhel happy
+        //printf("--->30: %s <> %s\n", fty_proto_value(bmsg), consumption);
+        CHECK(streq(fty_proto_value(bmsg), consumption));
+        zstr_free(&consumption);
+        fty_proto_destroy(&bmsg);
+    }
+
+    zactor_destroy(&cm_server);
+    zclock_sleep(5000);
+
+    mlm_client_destroy(&producer);
     zactor_destroy(&server);
     CHECK(zfile_exists("state.zpl"));
     unlink("state.zpl");

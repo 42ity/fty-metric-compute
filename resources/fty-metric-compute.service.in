@@ -1,5 +1,5 @@
 [Unit]
-Description=42ity computation services (min, max, averages)
+Description=42ity computation services (min, max, averages, consumption)
 Requires=malamute.service
 After=malamute.service
 

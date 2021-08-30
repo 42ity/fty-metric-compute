@@ -127,10 +127,15 @@ void s_handle_metric(fty_proto_t* bmsg, cm_t* self, bool shm)
         return;
     }
 
+    const char *quantity = fty_proto_type(bmsg);
     for (uint32_t* step_p = cmsteps_first(self->steps); step_p != nullptr; step_p = cmsteps_next(self->steps)) {
         for (const char* type = reinterpret_cast<const char*>(zlist_first(self->types)); type != nullptr;
-             type             = reinterpret_cast<const char*>(zlist_next(self->types))) {
-            const char*  step     = reinterpret_cast<const char*>(cmsteps_cursor(self->steps));
+                         type = reinterpret_cast<const char*>(zlist_next(self->types))) {
+            // If consumption calculation, filter data which is not realpower
+            if (type && quantity && streq(type, "consumption") && !streq(quantity, "realpower.default")) {
+                continue;
+            }
+            const char* step = reinterpret_cast<const char*>(cmsteps_cursor(self->steps));
             fty_proto_t* stat_msg = cmstats_put(self->stats, type, step, *step_p, bmsg);
             if (stat_msg) {
                 char* subject = zsys_sprintf("%s@%s", fty_proto_type(stat_msg), fty_proto_name(stat_msg));
@@ -166,7 +171,13 @@ void fty_metric_compute_metric_pull(zsock_t* pipe, void* args)
                 // All metrics realpower.default or temperature, or humidity who are not already produce by metric
                 // compute
                 const std::string pattern =
-                    "(^realpower\\.default|.*temperature|.*humidity)((?!_arithmetic_mean|_max_|_min_).)*";
+                    "(^realpower\\.default"
+                    "|^power\\.default"
+                    "|current\\.(output|input)\\.L(1|2|3)"
+                    "|voltage\\.(output|input)\\.L(1|2|3)-N"
+                    "|voltage\\.input\\.(1|2)"  // For ATS only
+                    "|.*temperature|.*humidity)"
+                    "((?!_arithmetic_mean|_max_|_min_|_consumption_).)*";
                 fty::shm::read_metrics(".*", pattern, result);
                 log_debug("number of metrics reads : %d", result.size());
                 for (auto& element : result) {
