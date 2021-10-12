@@ -406,7 +406,6 @@ void cmstats_poll(cmstats_t* self)
             fty_proto_t* ret = fty_proto_dup(stat_msg);
             log_debug("cmstats:\tPublishing message wiht subject=%s", key);
 
-            bool bPublish = true;
             // If consumption data, compute last value missing for the end of interval
             if (streq(fty_proto_aux_string(stat_msg, AGENT_CM_TYPE, ""), "consumption")) {
                 uint64_t last_metric_time_s = fty_proto_aux_number(stat_msg, AGENT_CM_LASTTS, 0);
@@ -440,10 +439,6 @@ void cmstats_poll(cmstats_t* self)
                 }
             }
             else {
-                if (fty_proto_aux_number(ret, AGENT_CM_COUNT, 0) == 0) {
-                    log_info("No metrics for this step, do not publish");
-                    bPublish = false;
-                }
                 // As we do not receive any message, start from ZERO
                 fty_proto_aux_insert(stat_msg, AGENT_CM_SUM, "0");
                 fty_proto_set_value(stat_msg, "0");
@@ -451,11 +446,15 @@ void cmstats_poll(cmstats_t* self)
             fty_proto_set_time(stat_msg, metric_time_new_s);
             fty_proto_aux_insert(stat_msg, AGENT_CM_COUNT, "0");
             fty_proto_print(ret);
-            if (bPublish) {
+            // Test if receive some data before publishing
+            if (fty_proto_aux_number(ret, AGENT_CM_COUNT, 0) != 0) {
                 int r = fty::shm::write_metric(ret);
                 if (r == -1) {
                     log_error("cmstats:\tCannot publish statistics");
                 }
+            }
+            else {
+              log_info("No metrics for this step, do not publish");
             }
             fty_proto_destroy(&ret);
         }
