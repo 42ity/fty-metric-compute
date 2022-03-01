@@ -101,6 +101,7 @@ TEST_CASE("cmstats test", "[cmstats]")
     CHECK(streq(fty_proto_value(stats), xxx));
     zstr_free(&xxx);
     CHECK(streq(fty_proto_aux_string(stats, AGENT_CM_COUNT, nullptr), "2"));
+    fty_proto_destroy(&stats);
 
     //  1.7 check the consumption
     stats = cmstats_put(self, "consumption", "10s", 10, bmsg);
