@@ -386,11 +386,13 @@ void fty_mc_server(zsock_t* pipe, void* args)
 
         // ignore linuxmetrics
         if (streq(mlm_client_sender(self->client), "fty_info_linuxmetrics")) {
+            zmsg_destroy(&msg);
             g_cm_mutex.unlock();
             continue;
         }
 
         fty_proto_t* bmsg = fty_proto_decode(&msg);
+        zmsg_destroy(&msg);
 
         // If we received an asset message
         // * "delete", "retire" or non active asset  -> drop all computations on that asset
