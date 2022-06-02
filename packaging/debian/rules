@@ -1,5 +1,5 @@
 #!/usr/bin/make -f 
-
+DEB_CXXFLAGS_MAINT_APPEND=-O3
 %:
 	$(info *** dh $(@) ***)
 	dh $(@) --buildsystem=cmake
