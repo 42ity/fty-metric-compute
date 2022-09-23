@@ -31,12 +31,12 @@
 
 typedef void(compute_fn)(const fty_proto_t* bmsg, fty_proto_t* stat_msg);
 
-static void s_destructor(void** self_p)
+static void s_proto_destructor(void** self_p)
 {
     fty_proto_destroy(reinterpret_cast<fty_proto_t**>(self_p));
 }
 
-static void* s_duplicator(const void* self)
+static void* s_proto_duplicator(const void* self)
 {
     return fty_proto_dup(const_cast<fty_proto_t*>(reinterpret_cast<const fty_proto_t*>(self)));
 }
@@ -171,12 +171,11 @@ cmstats_t* cmstats_new(void)
     //  Initialize class properties here
     self->stats = zhashx_new();
     assert(self->stats);
-    zhashx_set_destructor(self->stats, s_destructor);
-    zhashx_set_duplicator(self->stats, s_duplicator);
+    zhashx_set_destructor(self->stats, s_proto_destructor);
+    zhashx_set_duplicator(self->stats, s_proto_duplicator);
 
     return self;
 }
-
 
 //  --------------------------------------------------------------------------
 //  Destroy the cmstats
@@ -223,11 +222,14 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
     // works well for any value of step
     uint64_t metric_time_new_s = (now_ms - (now_ms % (step * 1000))) / 1000;
 
-    char* key;
-    int   r = asprintf(&key, "%s_%s_%s@%s", fty_proto_type(bmsg), addr_fun, sstep, fty_proto_name(bmsg));
-    assert(r != -1); // make gcc @ rhel happy
-    std::string skey(key);
-    zstr_free(&key);
+    std::string skey;
+    {
+        char* key = NULL;
+        asprintf(&key, "%s_%s_%s@%s", fty_proto_type(bmsg), addr_fun, sstep, fty_proto_name(bmsg));
+        assert(key);
+        skey = key;
+        zstr_free(&key);
+    }
 
     fty_proto_t* stat_msg = reinterpret_cast<fty_proto_t*>(zhashx_lookup(self->stats, skey.c_str()));
 
@@ -269,6 +271,7 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
         //    last_metric_time_s, getTimeStampStr(last_metric_time_s).c_str());
         return nullptr;
     }
+
     // it is, return the stat value and "restart" the computation
     if (((now_ms - (metric_time_s * 1000)) >= (step * 1000))) {
         // duplicate "old" value for the interval, that has just ended
@@ -335,9 +338,10 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
         log_debug("cmstats_put: Update consumption for %s", skey.c_str());
         value_accepted = s_consumption(bmsg, stat_msg);
     }
-    // fail otherwise
-    else
+    else { // fail otherwise
+        log_error("addr_fun not handled (%s)", addr_fun);
         assert(false);
+    }
 
     // increase the counter
     if (value_accepted) {
@@ -361,17 +365,22 @@ void cmstats_delete_asset(cmstats_t* self, const char* asset_name)
     // no autofree here, this list constains only _references_ to keys,
     // which are owned and cleanded up by self->stats on zhashx_delete
 
-    for (fty_proto_t* stat_msg = reinterpret_cast<fty_proto_t*>(zhashx_first(self->stats)); stat_msg != nullptr;
-         stat_msg              = reinterpret_cast<fty_proto_t*>(zhashx_next(self->stats))) {
+    for (fty_proto_t* stat_msg = reinterpret_cast<fty_proto_t*>(zhashx_first(self->stats));
+         stat_msg != nullptr;
+         stat_msg = reinterpret_cast<fty_proto_t*>(zhashx_next(self->stats))
+    ) {
         const char* key = reinterpret_cast<const char*>(zhashx_cursor(self->stats));
         if (streq(fty_proto_name(stat_msg), asset_name))
             zlist_append(keys, const_cast<char*>(key));
     }
 
-    for (const char* key = reinterpret_cast<const char*>(zlist_first(keys)); key != nullptr;
-         key             = reinterpret_cast<const char*>(zlist_next(keys))) {
+    for (const char* key = reinterpret_cast<const char*>(zlist_first(keys));
+         key != nullptr;
+         key = reinterpret_cast<const char*>(zlist_next(keys))
+    ) {
         zhashx_delete(self->stats, key);
     }
+
     zlist_destroy(&keys);
 }
 
@@ -385,8 +394,10 @@ void cmstats_poll(cmstats_t* self)
     // What is it time now? [ms]
     uint64_t now_ms = uint64_t(zclock_time());
 
-    for (fty_proto_t* stat_msg = reinterpret_cast<fty_proto_t*>(zhashx_first(self->stats)); stat_msg != nullptr;
-         stat_msg              = reinterpret_cast<fty_proto_t*>(zhashx_next(self->stats))) {
+    for (fty_proto_t* stat_msg = reinterpret_cast<fty_proto_t*>(zhashx_first(self->stats));
+         stat_msg != nullptr;
+         stat_msg = reinterpret_cast<fty_proto_t*>(zhashx_next(self->stats))
+    ) {
         // take a key, actually it is the future subject of the message
         const char* key = reinterpret_cast<const char*>(zhashx_cursor(self->stats));
 
@@ -470,8 +481,10 @@ int cmstats_save(cmstats_t* self, const char* filename)
 
     zconfig_t* root = zconfig_new("cmstats", nullptr);
     int        i    = 1;
-    for (fty_proto_t* bmsg = reinterpret_cast<fty_proto_t*>(zhashx_first(self->stats)); bmsg != nullptr;
-         bmsg              = reinterpret_cast<fty_proto_t*>(zhashx_next(self->stats))) {
+    for (fty_proto_t* bmsg = reinterpret_cast<fty_proto_t*>(zhashx_first(self->stats));
+         bmsg != nullptr;
+         bmsg = reinterpret_cast<fty_proto_t*>(zhashx_next(self->stats))
+    ) {
         // ZCONFIG doesn't allow spaces in keys! -> metric topic cannot be key
         // because it has an asset name inside!
         char* asset_key = nullptr;
@@ -489,8 +502,10 @@ int cmstats_save(cmstats_t* self, const char* filename)
         zconfig_putf(item, "ttl", "%" PRIu32, fty_proto_ttl(bmsg));
 
         zhash_t* aux = fty_proto_aux(bmsg);
-        for (const char* aux_value = reinterpret_cast<const char*>(zhash_first(aux)); aux_value != nullptr;
-             aux_value             = reinterpret_cast<const char*>(zhash_next(aux))) {
+        for (const char* aux_value = reinterpret_cast<const char*>(zhash_first(aux));
+             aux_value != nullptr;
+             aux_value = reinterpret_cast<const char*>(zhash_next(aux))
+        ) {
             const char* aux_key = zhash_cursor(aux);
             char*       item_key;
 
