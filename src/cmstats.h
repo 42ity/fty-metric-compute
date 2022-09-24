@@ -23,11 +23,15 @@
 #pragma once
 #include <fty_proto.h>
 
-//  Structure of our class
-struct cmstats_t
-{
-    zhashx_t* stats; // a hash of FTY_PROTO metrics for "AVG/MIN/MAX" ready to be published
-};
+//  Add your own public definitions here, if you need them
+#define AGENT_CM_COUNT  "x-cm-count"    // how many measurements are there
+#define AGENT_CM_SUM    "x-cm-sum"      // sum of the values
+#define AGENT_CM_TYPE   "x-cm-type"     // type of computation (min/max/...)
+#define AGENT_CM_STEP   "x-cm-step"     // computation step (in seconds)
+#define AGENT_CM_LASTTS "x-cm-last-ts"  // timestamp of last metric
+
+// opacified structure
+typedef struct _cmstats_t cmstats_t;
 
 //  Create a new cmstats
 cmstats_t* cmstats_new(void);
@@ -37,6 +41,9 @@ void cmstats_destroy(cmstats_t** self_p);
 
 //  Print the cmstats
 void cmstats_print(cmstats_t* self);
+
+//  Says if the given metric (quantity@assetName) if handled by the cmstats
+bool cmstats_exist(cmstats_t* self, const char* metricName);
 
 // Update statistics with "aggr_fun" and "step" for the incomming message "bmsg"
 // Caller is responsible for destroying the value that was returned.
@@ -60,13 +67,14 @@ void cmstats_print(cmstats_t* self);
 //
 fty_proto_t* cmstats_put(cmstats_t* self, const char* aggr_fun, const char* sstep, uint32_t step, fty_proto_t* bmsg);
 
-//  Remove all the entries related to the asset wiht asset_name from stats
+//  Remove all the asset_name entries from stats
 void cmstats_delete_asset(cmstats_t* self, const char* asset_name);
 
 //  Polling handler - publish && reset the computed values if needed
 void cmstats_poll(cmstats_t* self);
 
-//  Save the cmstats to filename, return -1 if fail
+//  Save the cmstats to filename
+// returns 0 if success, else <0
 int cmstats_save(cmstats_t* self, const char* filename);
 
 //  Load the cmstats from filename, return NULL if fail

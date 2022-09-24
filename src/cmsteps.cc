@@ -24,9 +24,13 @@
 #include "cmsteps.h"
 #include <czmq.h>
 
+//zhashx_t destructor function
 static void s_desctructor(void** item_p)
 {
-    free(*item_p);
+    if (item_p && *item_p) {
+        free(*item_p);
+        *item_p = NULL;
+    }
 }
 
 //  --------------------------------------------------------------------------
@@ -35,12 +39,32 @@ static void s_desctructor(void** item_p)
 cmsteps_t* cmsteps_new(void)
 {
     cmsteps_t* self = reinterpret_cast<cmsteps_t*>(zmalloc(sizeof(cmsteps_t)));
-    assert(self);
+    if (!self) return nullptr;
+
     //  Initialize class properties here
     self->steps = zhashx_new();
-    assert(self->steps);
+    if (!self->steps) {
+        cmsteps_destroy(&self);
+        return nullptr;
+    }
+
     zhashx_set_destructor(self->steps, s_desctructor);
     return self;
+}
+
+//  --------------------------------------------------------------------------
+//  Destroy the cmsteps
+
+void cmsteps_destroy(cmsteps_t** self_p)
+{
+    if (self_p && *self_p) {
+        cmsteps_t* self = *self_p;
+        //  Free class properties here
+        zhashx_destroy(&self->steps);
+        //  Free object itself
+        free(self);
+        *self_p = nullptr;
+    }
 }
 
 //  --------------------------------------------------------------------------
@@ -121,7 +145,7 @@ static uint32_t s_cmsteps_gcd(cmsteps_t* self)
 
 //  --------------------------------------------------------------------------
 //  Return greatest common divisor of steps - 0 means no steps are in a list
-// in [s]
+//  in [s]
 
 uint32_t cmsteps_gcd(cmsteps_t* self)
 {
@@ -137,8 +161,9 @@ int cmsteps_put(cmsteps_t* self, const char* step)
     assert(self);
 
     int64_t r = cmsteps_toint(step);
-    if (r == -1)
+    if (r == -1) {
         return -1;
+    }
 
     uint32_t* n = reinterpret_cast<uint32_t*>(malloc(sizeof(uint32_t)));
     *n          = uint32_t(r);
@@ -184,20 +209,4 @@ uint32_t* cmsteps_next(cmsteps_t* self)
 const void* cmsteps_cursor(cmsteps_t* self)
 {
     return zhashx_cursor(self->steps);
-}
-
-//  --------------------------------------------------------------------------
-//  Destroy the cmsteps
-
-void cmsteps_destroy(cmsteps_t** self_p)
-{
-    assert(self_p);
-    if (*self_p) {
-        cmsteps_t* self = *self_p;
-        //  Free class properties here
-        zhashx_destroy(&self->steps);
-        //  Free object itself
-        free(self);
-        *self_p = nullptr;
-    }
 }

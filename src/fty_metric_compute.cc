@@ -25,65 +25,51 @@
 
 #define ACTOR_NAME "fty-metric-compute"
 
+static void usage(const char* pname)
+{
+    printf("%s [options] ...\n", pname);
+    printf("  -v|--verbose    verbose output\n");
+    printf("  -e|--endpoint   malamute endpoint (default ipc://@/malamute)\n");
+    printf("  -h|--help       show this information\n");
+}
+
 int main(int argc, char* argv[])
 {
     //defaults
     const char* endpoint = "ipc://@/malamute";
-    const char* config = "/etc/fty-metric-compute/fty-metric-compute.cfg";
     const char* dir_persist = "/var/lib/fty/fty-metric-compute";
     bool verbose = false;
 
-    ftylog_setInstance(ACTOR_NAME, FTY_COMMON_LOGGING_DEFAULT_CFG);
-
     for (int argn = 1; argn < argc; argn++) {
-        if (streq(argv[argn], "--help") || streq(argv[argn], "-h")) {
-            puts("fty-metric-compute [options] ...");
-            puts("  --verbose / -v         verbose output");
-            puts("  --endpoint / -e        malamute endpoint (default ipc://@/malamute)");
-            puts("  --help / -h            this information");
-            puts("  --config / -c          config file for logging");
-            return 0;
+        const char* arg = argv[argn];
+        const char* param = ((argn + 1) < argc) ? argv[argn + 1] : NULL;
+
+        if (streq(arg, "--help") || streq(arg, "-h")) {
+            usage(argv[0]);
+            return EXIT_SUCCESS;
         }
-        else if (streq(argv[argn], "--verbose") || streq(argv[argn], "-v")) {
+
+        if (streq(arg, "--verbose") || streq(arg, "-v")) {
             verbose = true;
         }
-        else if (streq(argv[argn], "--endpoint") || streq(argv[argn], "-e")) {
-            argn += 1;
-            if (argc > argn)
-                endpoint = reinterpret_cast<const char*>(argv[argn]);
-            else {
-                log_error("-e/--endpoint expects an argument");
-                return 1;
+        else if (streq(arg, "--endpoint") || streq(arg, "-e")) {
+            if (param) {
+                endpoint = param;
+                argn++;
             }
-        }
-        else if (streq(argv[argn], "--config") || streq(argv[argn], "-c")) {
-            argn += 1;
-            if (argc > argn)
-                config = reinterpret_cast<const char*>(argv[argn]);
             else {
-                log_error("-c/--config expects argument");
-                return 1;
+                fprintf(stderr, "%s option expects an argument\n", arg);
+                return EXIT_FAILURE;
             }
         }
         else {
-            log_error("Unknown option: %s\n", argv[argn]);
-            return 1;
-        }
-    }
-
-    if (config) {
-        log_info("%s: loading config file (%s)", ACTOR_NAME, config);
-        zconfig_t* cfg = zconfig_load(config);
-        if (cfg) {
-            const char* log_config = zconfig_get(cfg, "log/config", FTY_COMMON_LOGGING_DEFAULT_CFG);
-            ftylog_setConfigFile(ftylog_getInstance(), log_config);
-            zconfig_destroy(&cfg);
-        }
-        else {
-            log_fatal("%s: failed to load configuration file '%s' (%m)", ACTOR_NAME, config);
+            fprintf(stderr, "%s option is unknown\n", arg);
+            usage(argv[0]);
             return EXIT_FAILURE;
         }
     }
+
+    ftylog_setInstance(ACTOR_NAME, FTY_COMMON_LOGGING_DEFAULT_CFG);
 
     if (verbose) {
         ftylog_setVerboseMode(ftylog_getInstance());
@@ -91,37 +77,38 @@ int main(int argc, char* argv[])
 
     log_info("%s: starting...", ACTOR_NAME);
 
-    zactor_t* cm_server = zactor_new(fty_mc_server, const_cast<char*>(ACTOR_NAME));
-    if (!cm_server) {
-        log_fatal("%s: cm_server new failed", ACTOR_NAME);
+    zactor_t* mc_server = zactor_new(fty_mc_server, const_cast<char*>(ACTOR_NAME));
+    if (!mc_server) {
+        log_fatal("%s: mc_server new failed", ACTOR_NAME);
         return EXIT_FAILURE;
     }
 
-    // TODO: Make this configurable, runtime and build-time default
+    // Should make this configurable, runtime and build-time default
+    // TYPES: types of computation from any handled metrics (consumption is specific to power)
+    // STEPS: periods of time for the computations
 
-    zstr_sendx(cm_server, "TYPES", "min", "max", "arithmetic_mean", "consumption", nullptr);
-    zstr_sendx(cm_server, "STEPS", "15m", "30m", "1h", "8h", "24h", "7d", "30d", nullptr);
-    zstr_sendx(cm_server, "DIR", dir_persist, nullptr);
-    zstr_sendx(cm_server, "CONNECT", endpoint, nullptr);
-    // zstr_sendx (cm_server, "PRODUCER", FTY_PROTO_STREAM_METRICS, nullptr);
-    // zstr_sendx (cm_server, "CONSUMER", FTY_PROTO_STREAM_METRICS, "(^realpower.default.*|.*temperature.*|.*humidity.*)", nullptr);
-    zstr_sendx(cm_server, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", nullptr);
-    zstr_sendx(cm_server, "CREATE_PULL", nullptr);
+    zstr_sendx(mc_server, "TYPES", "min", "max", "arithmetic_mean", "consumption", nullptr);
+    zstr_sendx(mc_server, "STEPS", "15m", "30m", "1h", "8h", "24h", "7d", "30d", nullptr);
+    zstr_sendx(mc_server, "DIR", dir_persist, nullptr);
+    zstr_sendx(mc_server, "CONNECT", endpoint, nullptr);
+    zstr_sendx(mc_server, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", nullptr);
+    zstr_sendx(mc_server, "CREATE_PULL", nullptr);
 
-    log_info("%s: started (endpoint: %s)", ACTOR_NAME, endpoint);
+    log_info("%s: started", ACTOR_NAME);
 
     // Main loop, accept any message back from server
     // copy from src/malamute.c under MPL license
     while (!zsys_interrupted) {
-        char* msg = zstr_recv(cm_server);
+        char* msg = zstr_recv(mc_server);
         if (!msg)
             break;
         log_trace("%s: recv msg '%s'", ACTOR_NAME, msg);
         zstr_free(&msg);
     }
 
-    zactor_destroy(&cm_server);
+    zactor_destroy(&mc_server);
 
     log_info("%s: ended", ACTOR_NAME);
+
     return EXIT_SUCCESS;
 }
