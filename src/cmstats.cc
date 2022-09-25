@@ -35,8 +35,6 @@ struct _cmstats_t
     zhashx_t* stats; // a hash map of computed FTY_PROTO metrics ready to be published
 };
 
-typedef void(compute_fn)(const fty_proto_t* bmsg, fty_proto_t* stat_msg);
-
 // zhashx_t item destructor (czmq_destructor)
 static void s_proto_destructor(void** self_p)
 {
@@ -334,11 +332,12 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
                 // Compute last value missing for the returned interval
                 double consumption = atof(fty_proto_value(stat_msg));
                 double inc = last_metric_value * static_cast<double>(delta);
+                consumption += inc;
+                fty_proto_set_value(ret, "%.1f", consumption);
+
                 log_debug("cmstats_put: End consumption for %s: inc=%.1f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, skey.c_str(), inc,
                     metric_time_new_s, s_getTimeStampStr(metric_time_new_s).c_str(), last_metric_time_s, s_getTimeStampStr(last_metric_time_s).c_str(),
                     metric_time_new_s - last_metric_time_s);
-                consumption += inc;
-                fty_proto_set_value(ret, "%.1f", consumption);
 
                 // and compute the first value for the new interval
                 double value = atof(fty_proto_value(bmsg));
@@ -347,6 +346,7 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
                 fty_proto_set_value(stat_msg, "%.1f", consumption);
                 fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, now_ms/1000);
                 fty_proto_aux_insert(stat_msg, AGENT_CM_COUNT, "1");
+
                 log_debug("cmstats_put: Update new consumption for %s: %.1f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, skey.c_str(), consumption,
                     now_ms/1000, s_getTimeStampStr(now_ms/1000).c_str(), metric_time_new_s, s_getTimeStampStr(metric_time_new_s).c_str(),
                     now_ms/1000 - metric_time_new_s);
@@ -395,7 +395,7 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
 void cmstats_delete_asset(cmstats_t* self, const char* asset_name)
 {
     assert(self);
-    assert(asset_name);
+    if (!asset_name) return;
 
     log_debug("cmstats_delete_asset %s", asset_name);
 
@@ -451,10 +451,11 @@ void cmstats_poll(cmstats_t* self)
         // Should this metric be published and computation restarted?
         if ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) {
             // Yes, it should!
-            fty_proto_t* ret = fty_proto_dup(stat_msg);
-            log_debug("cmstats:\tPublishing message with subject=%s", key);
+            log_debug("cmstats_poll: metric complete (%s)", key);
 
-            // If consumption data, compute last value missing for the end of interval
+            fty_proto_t* ret = fty_proto_dup(stat_msg);
+
+            // If consumption data, compute/add last value missing for the end of interval
             if (streq(fty_proto_aux_string(stat_msg, AGENT_CM_TYPE, ""), "consumption"))
             {
                 uint64_t last_metric_time_s = fty_proto_aux_number(stat_msg, AGENT_CM_LASTTS, 0);
@@ -473,6 +474,7 @@ void cmstats_poll(cmstats_t* self)
                     double inc = last_metric_value * static_cast<double>(delta);
                     consumption += inc;
                     fty_proto_set_value(ret, "%.1f", consumption);
+
                     log_debug("cmstats_poll: End consumption for %s: new=%.1f inc=%.1f %" PRIu64"(%s)-%" PRIu64 "(%s) %" PRIu64, key, consumption, inc,
                         metric_time_new_s, s_getTimeStampStr(metric_time_new_s).c_str(), last_metric_time_s, s_getTimeStampStr(last_metric_time_s).c_str(),
                         metric_time_new_s - last_metric_time_s);
@@ -482,6 +484,7 @@ void cmstats_poll(cmstats_t* self)
                     if (consumption < 0) consumption = 0;
                     fty_proto_set_value(stat_msg, "%.1f", consumption);
                     fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, now_ms/1000);
+
                     log_debug("cmstats_poll: Update new consumption for %s: %.1f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, key, consumption,
                         now_ms/1000, s_getTimeStampStr(now_ms/1000).c_str(), metric_time_new_s, s_getTimeStampStr(metric_time_new_s).c_str(),
                         now_ms/1000 - metric_time_new_s);
@@ -495,17 +498,19 @@ void cmstats_poll(cmstats_t* self)
 
             fty_proto_set_time(stat_msg, metric_time_new_s);
             fty_proto_aux_insert(stat_msg, AGENT_CM_COUNT, "0");
+
             fty_proto_print(ret);
 
-            // Test if receive some data before publishing
+            // publish only consistent computed metric
             if (fty_proto_aux_number(ret, AGENT_CM_COUNT, 0) != 0) {
+                log_debug("cmstats_poll: publish metric %s", key);
                 int r = fty::shm::write_metric(ret);
                 if (r == -1) {
-                    log_error("cmstats:\tCannot publish statistics");
+                    log_error("cmstats_poll: publish metric failed (%s)", key);
                 }
             }
             else {
-                log_info("No metrics for this step, do not publish");
+                log_info("cmstats_poll: No metrics for this step, do not publish (%s)", key);
             }
             fty_proto_destroy(&ret);
         }

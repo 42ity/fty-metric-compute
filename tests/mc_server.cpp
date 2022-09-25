@@ -31,6 +31,7 @@ TEST_CASE("mc_server_min_max_mean", "[mc_server][min][max][mean]")
     REQUIRE(server);
     zstr_sendx(server, "BIND", endpoint, nullptr);
 
+    // create metric compute server
     zactor_t* mc_server = zactor_new(fty_mc_server, const_cast<char*>("fty-mc-server-test"));
     REQUIRE(mc_server);
     zstr_sendx(mc_server, "TYPES", "min", "max", "arithmetic_mean", nullptr);
@@ -39,9 +40,9 @@ TEST_CASE("mc_server_min_max_mean", "[mc_server][min][max][mean]")
     zstr_sendx(mc_server, "CONNECT", endpoint, nullptr);
     zstr_sendx(mc_server, "CREATE_PULL", nullptr);
 
-    zclock_sleep(500);
+    zclock_sleep(500); // sync
 
-    // XXX: the test is sensitive on timing!!!
+    // CAUTION: the test is sensitive on timing!!!
     //     so it must start at the beggining of the fifth second in minute (00, 05, 10, ... 55)
     //     other option is to not test in second precision,
     //     which will increase the time of make check far beyond
@@ -54,8 +55,11 @@ TEST_CASE("mc_server_min_max_mean", "[mc_server][min][max][mean]")
         zclock_sleep(int(delay));
     }
 
+    // T+0s
     if (verbose) printf("-----> start\n");
     int64_t start_ms = zclock_time();
+
+    // publish some metrics...
 
     // 100
     CHECK(fty::shm::write_metric("DEV1", "realpower.default", "100", "UNIT", 20) == 0);
@@ -74,39 +78,53 @@ TEST_CASE("mc_server_min_max_mean", "[mc_server][min][max][mean]")
     zclock_sleep(2000);
 
     // T+11s
-    //zclock_sleep(int(50000 - (zclock_time() - TEST_START_MS) - 39000));
     wait_time(start_ms, 11, verbose);
 
     // now we should have first 1s min/max/avg values published - from polling
     {
         fty_proto_t* bmsg = nullptr;
         fty::shm::read_metric("DEV1", "realpower.default_min_10s", &bmsg);
+        REQUIRE(bmsg);
         const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
+        const char* count = fty_proto_aux_string(bmsg, AGENT_CM_COUNT, "0");
+        const char* value = fty_proto_value(bmsg);
+        const char* expected = "50.00";
+        if (verbose) printf("--->1a: %s <> %s (type: %s, count: %s)\n", value, expected, type, count);
         CHECK(streq(type, "min"));
-        CHECK(streq(fty_proto_value(bmsg), "50.00"));
+        CHECK(streq(value, expected));
         fty_proto_destroy(&bmsg);
     }
     {
         fty_proto_t* bmsg = nullptr;
         fty::shm::read_metric("DEV1", "realpower.default_max_10s", &bmsg);
+        REQUIRE(bmsg);
         const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
+        const char* count = fty_proto_aux_string(bmsg, AGENT_CM_COUNT, "0");
+        const char* value = fty_proto_value(bmsg);
+        const char* expected = "100";
+        if (verbose) printf("--->1b: %s <> %s (type: %s, count: %s)\n", value, expected, type, count);
         CHECK(streq(type, "max"));
-        CHECK(streq(fty_proto_value(bmsg), "100"));
+        CHECK(streq(value, expected));
         fty_proto_destroy(&bmsg);
     }
     {
         fty_proto_t* bmsg = nullptr;
         fty::shm::read_metric("DEV1", "realpower.default_arithmetic_mean_10s", &bmsg);
+        REQUIRE(bmsg);
         const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
+        const char* count = fty_proto_aux_string(bmsg, AGENT_CM_COUNT, "0");
+        const char* value = fty_proto_value(bmsg);
+        const char* expected = "75.00"; // (50 + 100) / 2
+        if (verbose) printf("--->1c: %s <> %s (type: %s, count: %s)\n", value, expected, type, count);
         CHECK(streq(type, "arithmetic_mean"));
-        CHECK(streq(fty_proto_value(bmsg), "75.00")); // (50 + 100) / 2
+        CHECK(streq(value, expected));
         fty_proto_destroy(&bmsg);
     }
 
     // T+31s
     wait_time(start_ms, 31, verbose);
 
-    // send some 10s min/max to differentiate the 10s and 50s min/max later on
+    // publish some 10s min/max to differentiate the 10s and 50s min/max later on
 
     fty::shm::write_metric("DEV1", "realpower.default", "42", "UNIT", 2);
     zclock_sleep(2000);
@@ -121,25 +139,40 @@ TEST_CASE("mc_server_min_max_mean", "[mc_server][min][max][mean]")
     {
         fty_proto_t* bmsg = nullptr;
         fty::shm::read_metric("DEV1", "realpower.default_min_50s", &bmsg);
+        REQUIRE(bmsg);
         const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
+        const char* count = fty_proto_aux_string(bmsg, AGENT_CM_COUNT, "0");
+        const char* value = fty_proto_value(bmsg);
+        const char* expected = "42.00";
+        if (verbose) printf("--->2a: %s <> %s (type: %s, count: %s)\n", value, expected, type, count);
         CHECK(streq(type, "min"));
-        CHECK(streq(fty_proto_value(bmsg), "42.00"));
+        CHECK(streq(value, expected));
         fty_proto_destroy(&bmsg);
     }
     {
         fty_proto_t* bmsg = nullptr;
         fty::shm::read_metric("DEV1", "realpower.default_max_50s", &bmsg);
+        REQUIRE(bmsg);
         const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
+        const char* count = fty_proto_aux_string(bmsg, AGENT_CM_COUNT, "0");
+        const char* value = fty_proto_value(bmsg);
+        const char* expected = "242.00";
+        if (verbose) printf("--->2b: %s <> %s (type: %s, count: %s)\n", value, expected, type, count);
         CHECK(streq(type, "max"));
-        CHECK(streq(fty_proto_value(bmsg), "242.00"));
+        CHECK(streq(value, expected));
         fty_proto_destroy(&bmsg);
     }
     {
         fty_proto_t* bmsg = nullptr;
         fty::shm::read_metric("DEV1", "realpower.default_arithmetic_mean_50s", &bmsg);
+        REQUIRE(bmsg);
         const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
+        const char* count = fty_proto_aux_string(bmsg, AGENT_CM_COUNT, "0");
+        const char* value = fty_proto_value(bmsg);
+        const char* expected = "108.50"; // (100 + 50 + 42 + 242) / 4
+        if (verbose) printf("--->2c: %s <> %s (type: %s, count: %s)\n", value, expected, type, count);
         CHECK(streq(type, "arithmetic_mean"));
-        CHECK(streq(fty_proto_value(bmsg), "108.50")); // (100 + 50 + 42 + 242) / 4
+        CHECK(streq(value, expected));
         fty_proto_destroy(&bmsg);
     }
 
@@ -173,6 +206,7 @@ TEST_CASE("mc_server_consumption", "[mc_server][consumption]")
     REQUIRE(server);
     zstr_sendx(server, "BIND", endpoint, nullptr);
 
+    // create metric compute server
     zactor_t* mc_server = zactor_new(fty_mc_server, const_cast<char*>("fty-mc-server-test"));
     REQUIRE(mc_server);
     zstr_sendx(mc_server, "TYPES", "consumption", nullptr);
@@ -181,9 +215,9 @@ TEST_CASE("mc_server_consumption", "[mc_server][consumption]")
     zstr_sendx(mc_server, "CONNECT", endpoint, nullptr);
     zstr_sendx(mc_server, "CREATE_PULL", nullptr);
 
-    zclock_sleep(500);
+    zclock_sleep(500); // sync
 
-    // XXX: the test is sensitive on timing!!!
+    // CAUTION: the test is sensitive on timing!!!
     //     so it must start at the beggining of the 30th second in minute (00, 30, ...)
     //     other option is to not test in second precision,
     //     which will increase the time of make check far beyond
@@ -195,7 +229,7 @@ TEST_CASE("mc_server_consumption", "[mc_server][consumption]")
         zclock_sleep(int(delay));
     }
 
-    char consumption[64];
+    char expected[64]; // consumption
 
     // T+0s
     int64_t start_ms = zclock_time();
@@ -214,12 +248,14 @@ TEST_CASE("mc_server_consumption", "[mc_server][consumption]")
     {
         fty_proto_t* bmsg = nullptr;
         fty::shm::read_metric("DEV1", "realpower.default_consumption_10s", &bmsg);
-        const char* count = fty_proto_aux_string(bmsg, AGENT_CM_COUNT, "0");
+        REQUIRE(bmsg);
         const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
+        const char* count = fty_proto_aux_string(bmsg, AGENT_CM_COUNT, "0");
+        const char* value = fty_proto_value(bmsg);
+        snprintf(expected, sizeof(expected), "%.1f", 100.0 * 10);
+        if (verbose) printf("--->10(1): %s <> %s (type: %s, count: %s)\n", value, expected, type, count);
         CHECK(streq(type, "consumption"));
-        snprintf(consumption, sizeof(consumption), "%.1f", 100.0 * 10);
-        if (verbose) printf("--->10(1): %s <> %s (count: %s)\n", fty_proto_value(bmsg), consumption, count);
-        CHECK(streq(fty_proto_value(bmsg), consumption));
+        CHECK(streq(value, expected));
         fty_proto_destroy(&bmsg);
     }
 
@@ -239,12 +275,14 @@ TEST_CASE("mc_server_consumption", "[mc_server][consumption]")
     {
         fty_proto_t* bmsg = nullptr;
         fty::shm::read_metric("DEV1", "realpower.default_consumption_10s", &bmsg);
-        const char* count = fty_proto_aux_string(bmsg, AGENT_CM_COUNT, "0");
+        REQUIRE(bmsg);
         const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
+        const char* count = fty_proto_aux_string(bmsg, AGENT_CM_COUNT, "0");
+        const char* value = fty_proto_value(bmsg);
+        snprintf(expected, sizeof(expected), "%.1f", 100.0 * 5 + 150.0 * 5);
+        if (verbose) printf("--->10(2): %s <> %s (type: %s, count: %s)\n", value, expected, type, count);
         CHECK(streq(type, "consumption"));
-        snprintf(consumption, sizeof(consumption), "%.1f", 100.0 * 5 + 150.0 * 5);
-        if (verbose) printf("--->10(2): %s <> %s (count: %s)\n", fty_proto_value(bmsg), consumption, count);
-        CHECK(streq(fty_proto_value(bmsg), consumption));
+        CHECK(streq(value, expected));
         fty_proto_destroy(&bmsg);
     }
 
@@ -264,24 +302,28 @@ TEST_CASE("mc_server_consumption", "[mc_server][consumption]")
     {
         fty_proto_t* bmsg = nullptr;
         fty::shm::read_metric("DEV1", "realpower.default_consumption_10s", &bmsg);
-        const char* count = fty_proto_aux_string(bmsg, AGENT_CM_COUNT, "0");
+        REQUIRE(bmsg);
         const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
+        const char* count = fty_proto_aux_string(bmsg, AGENT_CM_COUNT, "0");
+        const char* value = fty_proto_value(bmsg);
+        snprintf(expected, sizeof(expected), "%.1f", 150.0 * 5 + 200.0 * 5);
+        if (verbose) printf("--->10(3): %s <> %s (type: %s, count: %s)\n", value, expected, type, count);
         CHECK(streq(type, "consumption"));
-        snprintf(consumption, sizeof(consumption), "%.1f", 150.0 * 5 + 200.0 * 5);
-        if (verbose) printf("--->10(3): %s <> %s (count: %s)\n", fty_proto_value(bmsg), consumption, count);
-        CHECK(streq(fty_proto_value(bmsg), consumption));
+        CHECK(streq(value, expected));
         fty_proto_destroy(&bmsg);
     }
     // and we should have the first 30s consumption value published
     {
         fty_proto_t* bmsg = nullptr;
         fty::shm::read_metric("DEV1", "realpower.default_consumption_30s", &bmsg);
-        const char* count = fty_proto_aux_string(bmsg, AGENT_CM_COUNT, "0");
+        REQUIRE(bmsg);
         const char* type = fty_proto_aux_string(bmsg, AGENT_CM_TYPE, "");
+        const char* count = fty_proto_aux_string(bmsg, AGENT_CM_COUNT, "0");
+        const char* value = fty_proto_value(bmsg);
+        snprintf(expected, sizeof(expected), "%.1f", ceil((100.0 * 15 + 150.0 * 10 + 200.0 * 5) * 10) / 10);
+        if (verbose) printf("--->30: %s <> %s (type: %s, count: %s)\n", value, expected, type, count);
         CHECK(streq(type, "consumption"));
-        snprintf(consumption, sizeof(consumption), "%.1f", ceil((100.0 * 15 + 150.0 * 10 + 200.0 * 5) * 10) / 10);
-        if (verbose) printf("--->30: %s <> %s (count: %s)\n", fty_proto_value(bmsg), consumption, count);
-        CHECK(streq(fty_proto_value(bmsg), consumption));
+        CHECK(streq(value, expected));
         fty_proto_destroy(&bmsg);
     }
 

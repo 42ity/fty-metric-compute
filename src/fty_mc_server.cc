@@ -58,7 +58,7 @@ static void cm_destroy(cm_t** self_p)
 
         // free structure itself
         free(self);
-        *self_p = nullptr;
+        *self_p = NULL;
     }
 }
 
@@ -108,22 +108,22 @@ static void s_handle_metric(cm_t* self, fty_proto_t* bmsg)
 
     // quick checks
     try {
-        if (!quantity) {
-            throw std::runtime_error("quantity is Null");
+        if (!(quantity && (*quantity))) {
+            throw std::runtime_error("quantity is Null/Empty");
         }
-        if (!name) {
-            throw std::runtime_error("name is Null");
+        if (!(name && (*name))) {
+            throw std::runtime_error("name is Null/Empty");
         }
-        if (!value) {
-            throw std::runtime_error("value is Null");
+        if (!(value && (*value))) {
+            throw std::runtime_error("value is Null/Empty");
         }
         double fvalue = atof(value);
         if (std::isnan(fvalue)) {
-            throw std::runtime_error("value isNaN");
+            throw std::runtime_error("value is NaN");
         }
     }
     catch (const std::exception& e) {
-        log_warning("%s: %s@%s (value: %s) is invalid: %s",
+        log_error("%s: %s@%s (value: %s) is invalid: %s",
             self->name, quantity, name, value, e.what());
         return;
     }
@@ -141,12 +141,12 @@ static void s_handle_metric(cm_t* self, fty_proto_t* bmsg)
 
     log_debug("%s: handle %s@%s (value: %s)", self->name, quantity, name, value);
 
-    for (uint32_t* step_p = cmsteps_first(self->steps); step_p != nullptr; step_p = cmsteps_next(self->steps))
+    for (uint32_t* step_p = cmsteps_first(self->steps); step_p; step_p = cmsteps_next(self->steps))
     {
         const char* str_step = reinterpret_cast<const char*>(cmsteps_cursor(self->steps));
         const uint32_t step = *step_p;
 
-        for (void* it_type = zlist_first(self->types); it_type != nullptr; it_type = zlist_next(self->types))
+        for (void* it_type = zlist_first(self->types); it_type; it_type = zlist_next(self->types))
         {
             const char* type = reinterpret_cast<const char*>(it_type);
 
@@ -200,7 +200,7 @@ static void s_pull_metrics(zsock_t* pipe, void* args)
         return;
     }
 
-    zpoller_t* poller = zpoller_new(pipe, nullptr);
+    zpoller_t* poller = zpoller_new(pipe, NULL);
     if (!poller) {
         log_error("poller new failed");
         return;
@@ -215,7 +215,7 @@ static void s_pull_metrics(zsock_t* pipe, void* args)
         int timeout = fty_get_polling_interval() * 1000; //ms
         void* which = zpoller_wait(poller, timeout);
 
-        if (which == nullptr) {
+        if (which == NULL) {
             if (zpoller_terminated(poller) || zsys_interrupted) {
                 break; //$TERM
             }
@@ -254,7 +254,7 @@ void fty_mc_server(zsock_t* pipe, void* args)
         return;
     }
 
-    zpoller_t* poller = zpoller_new(pipe, mlm_client_msgpipe(self->client), nullptr);
+    zpoller_t* poller = zpoller_new(pipe, mlm_client_msgpipe(self->client), NULL);
     if (!poller) {
         log_fatal("zpoller_new failed");
         cm_destroy(&self);
@@ -265,7 +265,7 @@ void fty_mc_server(zsock_t* pipe, void* args)
 
     zsock_signal(pipe, 0);
 
-    zactor_t* pull_metrics = nullptr;
+    zactor_t* pull_metrics = NULL;
 
     // Time in [ms] when last cmstats_poll was called
     // -1 means it was never called yet
@@ -285,7 +285,7 @@ void fty_mc_server(zsock_t* pipe, void* args)
             if (gcd_s != 0) { // some steps where defined
                 int64_t now_s = zclock_time() / 1000;
 
-                // Compute the left border of the interval:
+                // Compute the remaining (right) border of the interval:
                 // length_of_the_minimal_interval - part_of_interval_already_passed
                 interval_ms = int(gcd_s - (now_s % gcd_s)) * 1000;
 
@@ -303,31 +303,31 @@ void fty_mc_server(zsock_t* pipe, void* args)
             }
         }
 
-        // poll when zpoller expired
-        // the second condition necessary
-        //
-        //  X2 is an expected moment when some metrics should be published
-        //  in t=X1 message comes, its processing takes time and cycle will begin from the beginning
-        //  at moment X4, but in X3 some message had already come -> so zpoller_expired(poller) == false
-        //
-        // -NOW----X1------X2---X3--X4-----
-
         g_cm_mutex.lock();
 
         {
-            bool poller_expired = (which == NULL) && zpoller_expired(poller);
+            // poll when zpoller expired
+            // the second condition necessary
+            //
+            //  X2 is an expected moment when some metrics should be published
+            //  in t=X1 message comes, its processing takes time and cycle will begin from the beginning
+            //  at moment X4, but in X3 some message had already come -> so zpoller_expired(poller) == false
+            //
+            // -NOW----X1------X2---X3--X4-----
 
-            bool poll_is_required = false;
+            bool poller_expired = ((which == NULL) && zpoller_expired(poller));
+
+            bool time_expired = false;
             if (!poller_expired && (last_poll_ms > 0)) {
                 int64_t now_ms = zclock_time();
                 uint32_t gcd_s = cmsteps_gcd(self->steps);
                 if ((now_ms - last_poll_ms) >= (gcd_s * 1000)) {
-                    poll_is_required = true; // imperative
+                    time_expired = true;
                 }
             }
 
-            if (poller_expired || poll_is_required) {
-                log_debug("%s: %s, calling cmstats_poll",
+            if (poller_expired || time_expired) {
+                log_debug("%s: cmstats_poll due to %s",
                     self->name, (poller_expired ? "poller expired" : "time expired"));
 
                 // Record the poll time
@@ -336,16 +336,19 @@ void fty_mc_server(zsock_t* pipe, void* args)
                 // Publish metrics and reset the computation where needed
                 cmstats_poll(self->stats);
 
-                // State is saved every time, when something is published
-                // Something is published every "steps_gcd" interval
-                // In the most of the cases (steps_gcd = "minimal_interval")
+                log_info("%s: cmstats_poll at %zu s. (lap time: %zu ms.)",
+                    self->name, (last_poll_ms / 1000), (zclock_time() - last_poll_ms));
+
+                // State is saved every steps_gcd time, when something is published
                 if (self->filename) {
                     int r = cmstats_save(self->stats, self->filename);
                     if (r != 0) {
-                        log_error("%s: Failed to save '%s' (r: %d, %s)", self->name, self->filename, r, strerror(errno));
+                        log_error("%s: Failed to save '%s' (r: %d, %s)",
+                            self->name, self->filename, r, strerror(errno));
                     }
                     else {
-                        log_info("%s: Saved succesfully '%s'", self->name, self->filename);
+                        log_info("%s: Saved succesfully '%s'",
+                            self->name, self->filename);
                     }
                 }
 
@@ -356,8 +359,8 @@ void fty_mc_server(zsock_t* pipe, void* args)
         bool term{false};
 
         if (which == pipe) {
-            zmsg_t* msg     = zmsg_recv(pipe);
-            char*   command = zmsg_popstr(msg);
+            zmsg_t* msg = zmsg_recv(pipe);
+            char* command = zmsg_popstr(msg);
 
             log_debug("%s: command=%s", self->name, command);
 
@@ -365,12 +368,14 @@ void fty_mc_server(zsock_t* pipe, void* args)
                 term = true;
             }
             else if (streq(command, "DIR")) {
-                char*    dir = zmsg_popstr(msg);
-                zfile_t* f   = zfile_new(dir, "state.zpl");
-
+                char* path = zmsg_popstr(msg);
+                zfile_t* file = zfile_new(path, "state.zpl");
                 zstr_free(&self->filename);
-                self->filename = strdup(zfile_filename(f, nullptr));
-                log_info("%s: stateFile='%s'", self->name, self->filename);
+                self->filename = strdup(zfile_filename(file, NULL));
+                zfile_destroy(&file);
+                zstr_free(&path);
+
+                log_info("%s: State file='%s'", self->name, self->filename);
 
                 if (zfile_exists(self->filename)) {
                     cmstats_t* cms = cmstats_load(self->filename);
@@ -378,7 +383,7 @@ void fty_mc_server(zsock_t* pipe, void* args)
                         log_error("%s: Failed to load '%s'", self->name, self->filename);
                     }
                     else {
-                        log_info("%s: Loaded '%s'", self->name, self->filename);
+                        log_info("%s: State file '%s' loaded", self->name, self->filename);
                         cmstats_destroy(&self->stats);
                         self->stats = cms;
                     }
@@ -386,9 +391,6 @@ void fty_mc_server(zsock_t* pipe, void* args)
                 else {
                     log_info("%s: State file '%s' doesn't exists", self->name, self->filename);
                 }
-
-                zfile_destroy(&f);
-                zstr_free(&dir);
             }
             else if (streq(command, "CONSUMER")) {
                 char* stream  = zmsg_popstr(msg);
@@ -462,21 +464,21 @@ void fty_mc_server(zsock_t* pipe, void* args)
         else if (which == mlm_client_msgpipe(self->client))
         {
             zmsg_t* msg = mlm_client_recv(self->client);
-            if (msg) {
-                fty_proto_t* bmsg = fty_proto_decode(&msg);
-                if (bmsg && (fty_proto_id(bmsg) == FTY_PROTO_ASSET)) {
+            if (fty_proto_is(msg)) {
+                fty_proto_t* proto = fty_proto_decode(&msg);
+                if (proto && (fty_proto_id(proto) == FTY_PROTO_ASSET)) {
                     // we received an asset message
                     // * "delete", "retire" or non active asset -> drop all computations on that asset
                     // * other -> ignore it, as it doesn't impact this agent
-                    const char* operation = fty_proto_operation(bmsg);
+                    const char* operation = fty_proto_operation(proto);
                     if (streq(operation, FTY_PROTO_ASSET_OP_DELETE)
                         || streq(operation, FTY_PROTO_ASSET_OP_RETIRE)
-                        || !streq(fty_proto_aux_string(bmsg, FTY_PROTO_ASSET_STATUS, "active"), "active")
+                        || !streq(fty_proto_aux_string(proto, FTY_PROTO_ASSET_STATUS, "active"), "active")
                     ) {
-                        cmstats_delete_asset(self->stats, fty_proto_name(bmsg));
+                        cmstats_delete_asset(self->stats, fty_proto_name(proto));
                     }
                 }
-                fty_proto_destroy(&bmsg);
+                fty_proto_destroy(&proto);
             }
             zmsg_destroy(&msg);
         }

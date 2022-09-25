@@ -87,12 +87,12 @@ int main(int argc, char* argv[])
     // TYPES: types of computation from any handled metrics (consumption is specific to power)
     // STEPS: periods of time for the computations
 
-    zstr_sendx(mc_server, "TYPES", "min", "max", "arithmetic_mean", "consumption", nullptr);
-    zstr_sendx(mc_server, "STEPS", "15m", "30m", "1h", "8h", "24h", "7d", "30d", nullptr);
-    zstr_sendx(mc_server, "DIR", dir_persist, nullptr);
-    zstr_sendx(mc_server, "CONNECT", endpoint, nullptr);
-    zstr_sendx(mc_server, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", nullptr);
-    zstr_sendx(mc_server, "CREATE_PULL", nullptr);
+    zstr_sendx(mc_server, "TYPES", "min", "max", "arithmetic_mean", "consumption", NULL);
+    zstr_sendx(mc_server, "STEPS", "15m", "30m", "1h", "8h", "24h", "7d", "30d", NULL);
+    zstr_sendx(mc_server, "DIR", dir_persist, NULL);
+    zstr_sendx(mc_server, "CONNECT", endpoint, NULL);
+    zstr_sendx(mc_server, "CONSUMER", FTY_PROTO_STREAM_ASSETS, ".*", NULL);
+    zstr_sendx(mc_server, "CREATE_PULL", NULL);
 
     log_info("%s: started", ACTOR_NAME);
 

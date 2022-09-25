@@ -1,6 +1,5 @@
 /*  =========================================================================
     cmsteps - Helper class for list of steps
-    Note: This file was manually amended, see below
 
     Copyright (C) 2016 - 2020 Eaton
 
@@ -23,26 +22,16 @@
 #pragma once
 #include <czmq.h>
 
-//  Structure of our class
-struct cmsteps_t
-{
-    zhashx_t* steps; // in [s]
-    uint32_t  gcd;   // in [s]
-};
+// opacified structure
+typedef struct _cmsteps_t cmsteps_t;
 
 //  Create a new cmsteps
-cmsteps_t* cmsteps_new(void);
+cmsteps_t* cmsteps_new();
 
 //  Destroy the cmsteps
 void cmsteps_destroy(cmsteps_t** self_p);
 
-//  Convert the time with prefix to number in seconds
-//      "42" -> 42
-//      "42s" -> 42
-//      "42m" -> 2520
-int64_t cmsteps_toint(const char* step);
-
-//  Return greatest common divisor of steps - 0 means no steps are in a list
+//  Return greatest common divisor (sec.) of steps - 0 means no steps are in a list
 uint32_t cmsteps_gcd(cmsteps_t* self);
 
 //  Put new step to the list, return -1 if fail (possibly wrong step)
@@ -52,11 +41,11 @@ int cmsteps_put(cmsteps_t* self, const char* step);
 //  result can be cast to uint32_t
 int64_t cmsteps_get(cmsteps_t* self, const char* step);
 
-//  Return iterator to first item
+//  Return iterator to first item or NULL
 uint32_t* cmsteps_first(cmsteps_t* self);
 
 //  Return iterator to next item or NULL
 uint32_t* cmsteps_next(cmsteps_t* self);
 
-//  Return cursor
+//  Return cursor on current item
 const void* cmsteps_cursor(cmsteps_t* self);

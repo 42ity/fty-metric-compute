@@ -1,6 +1,5 @@
 /*  =========================================================================
     cmstats - Computing the stats on metrics
-    Note: This file was manually amended, see below
 
     Copyright (C) 2016 - 2020 Eaton
 
@@ -52,9 +51,10 @@ bool cmstats_exist(cmstats_t* self, const char* metricName);
 // * min - to find a minimum value inside the given interval
 // * max - to find a maximum value inside the given interval
 // * arithmetic_mean - to compute an arithmetic mean inside the given interval
+// * consumption - to compute an power consuption inside the given interval
 //
 // \param self - statistics object
-// \param aggr_fun - a type of aggregation ( min, max, avg )
+// \param aggr_fun - a type of aggregation (min, max, ...)
 // \param sstep - string representation of the step to be used in topic creation
 // \param step - in [s]
 // \param bmsg - message with received new RAW value
@@ -63,7 +63,7 @@ bool cmstats_exist(cmstats_t* self, const char* metricName);
 //                  * if we just started the computation
 //                  * if we are in the middle of computation (inside the interval)
 //         ret  - if we have just completed the computation for the interval and
-//                started new one. ( The old one is returned)
+//                started new one. (The old one is returned)
 //
 fty_proto_t* cmstats_put(cmstats_t* self, const char* aggr_fun, const char* sstep, uint32_t step, fty_proto_t* bmsg);
 

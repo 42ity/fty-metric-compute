@@ -40,9 +40,9 @@ etn_target(exe ${PROJECT_NAME}
 
 etn_test_target(${PROJECT_NAME}-lib
     SOURCES
-        tests/cmstats.cpp
-        tests/cmsteps.cpp
         tests/main.cpp
+        tests/cmsteps.cpp
+        tests/cmstats.cpp
         tests/mc_server.cpp
     PREPROCESSOR
         -DCATCH_CONFIG_FAST_COMPILE

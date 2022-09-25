@@ -24,7 +24,15 @@
 #include "cmsteps.h"
 #include <czmq.h>
 
-//zhashx_t destructor function
+//  Structure of our class
+struct _cmsteps_t
+{
+    zhashx_t* steps; // in [s]
+    uint32_t  gcd;   // in [s]
+};
+
+//  --------------------------------------------------------------------------
+// zhashx_t uint32_t* item destructor (czmq_destructor)
 static void s_desctructor(void** item_p)
 {
     if (item_p && *item_p) {
@@ -36,7 +44,7 @@ static void s_desctructor(void** item_p)
 //  --------------------------------------------------------------------------
 //  Create a new cmsteps
 
-cmsteps_t* cmsteps_new(void)
+cmsteps_t* cmsteps_new()
 {
     cmsteps_t* self = reinterpret_cast<cmsteps_t*>(zmalloc(sizeof(cmsteps_t)));
     if (!self) return nullptr;
@@ -68,21 +76,19 @@ void cmsteps_destroy(cmsteps_t** self_p)
 }
 
 //  --------------------------------------------------------------------------
-//  Convert the time with prefix to number in seconds
+//  Convert the step with prefix to number in seconds
 //      "42" -> 42
 //      "42s" -> 42
 //      "42m" -> 2520
 
-int64_t cmsteps_toint(const char* step)
+static int64_t s_step_toint(const char* step)
 {
-    assert(step);
-    assert(strlen(step) > 0);
-
-    int64_t  ret   = 0;
-    uint32_t times = 1;
+    if (!(step && (*step))) {
+        return -1; // NULL or empty
+    }
 
     char suffix = char(tolower(step[strlen(step) - 1]));
-
+    uint32_t times = 1;
     if (!isdigit(suffix)) {
         switch (suffix) {
             case 's':
@@ -98,18 +104,20 @@ int64_t cmsteps_toint(const char* step)
                 times = 24 * 60 * 60;
                 break;
             default:
-                return -1;
+                return -1; // not handled
         }
     }
 
-    ret = int64_t(atoi(step));
-    if (ret < 0)
-        return -1;
+    int64_t ret = int64_t(atoi(step));
+    if (ret < 0) {
+        return -1; // NaN
+    }
     ret *= times;
-    if (ret > UINT32_MAX)
-        return -1;
+    if (ret > UINT32_MAX) {
+        return -1; // out of bounds
+    }
 
-    return ret;
+    return ret; // ret >= 0
 }
 
 // http://www.math.wustl.edu/~victor/mfmm/compaa/gcd.c
@@ -127,15 +135,12 @@ static uint32_t s_gcd(uint32_t a, uint32_t b)
 static uint32_t s_cmsteps_gcd(cmsteps_t* self)
 {
     assert(self);
-    uint32_t gcd;
 
-    if (zhashx_size(self->steps) == 0)
-        gcd = 0;
-    else if (zhashx_size(self->steps) == 1)
+    uint32_t gcd = 0;
+
+    if (zhashx_size(self->steps) != 0) {
         gcd = *cmsteps_first(self);
-    else {
-        gcd = *cmsteps_first(self);
-        for (uint32_t* step_p = cmsteps_first(self); step_p != nullptr; step_p = cmsteps_next(self)) {
+        for (uint32_t* step_p = cmsteps_next(self); step_p; step_p = cmsteps_next(self)) {
             gcd = s_gcd(gcd, *step_p);
         }
     }
@@ -160,13 +165,13 @@ int cmsteps_put(cmsteps_t* self, const char* step)
 {
     assert(self);
 
-    int64_t r = cmsteps_toint(step);
+    int64_t r = s_step_toint(step);
     if (r == -1) {
         return -1;
     }
 
     uint32_t* n = reinterpret_cast<uint32_t*>(malloc(sizeof(uint32_t)));
-    *n          = uint32_t(r);
+    *n = uint32_t(r);
     zhashx_update(self->steps, step, n);
 
     self->gcd = s_cmsteps_gcd(self);
@@ -181,32 +186,37 @@ int cmsteps_put(cmsteps_t* self, const char* step)
 int64_t cmsteps_get(cmsteps_t* self, const char* step)
 {
     assert(self);
-    const uint32_t* n = reinterpret_cast<const uint32_t*>(zhashx_lookup(self->steps, step));
-    if (!n)
+    if (!(step && (*step))) {
         return -1;
-    return int64_t(*n);
+    }
+
+    const uint32_t* n = reinterpret_cast<const uint32_t*>(zhashx_lookup(self->steps, step));
+    return n ? int64_t(*n) : -1;
 }
 
 //  --------------------------------------------------------------------------
-//  Return iterator to first item
+//  Return iterator to first item or NULL
 
 uint32_t* cmsteps_first(cmsteps_t* self)
 {
+    assert(self);
     return reinterpret_cast<uint32_t*>(zhashx_first(self->steps));
 }
 
 //  --------------------------------------------------------------------------
-//  Return iterator to next item or nullptr
+//  Return iterator to next item or NULL
 
 uint32_t* cmsteps_next(cmsteps_t* self)
 {
+    assert(self);
     return reinterpret_cast<uint32_t*>(zhashx_next(self->steps));
 }
 
 //  --------------------------------------------------------------------------
-//  Return cursor
+//  Return cursor on current item
 
 const void* cmsteps_cursor(cmsteps_t* self)
 {
+    assert(self);
     return zhashx_cursor(self->steps);
 }
