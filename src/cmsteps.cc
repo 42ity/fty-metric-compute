@@ -134,11 +134,9 @@ static uint32_t s_gcd(uint32_t a, uint32_t b)
 // compute greatest common divisor from steps
 static uint32_t s_cmsteps_gcd(cmsteps_t* self)
 {
-    assert(self);
-
     uint32_t gcd = 0;
 
-    if (zhashx_size(self->steps) != 0) {
+    if (self && zhashx_size(self->steps) != 0) {
         gcd = *cmsteps_first(self);
         for (uint32_t* step_p = cmsteps_next(self); step_p; step_p = cmsteps_next(self)) {
             gcd = s_gcd(gcd, *step_p);
@@ -154,8 +152,7 @@ static uint32_t s_cmsteps_gcd(cmsteps_t* self)
 
 uint32_t cmsteps_gcd(cmsteps_t* self)
 {
-    assert(self);
-    return self->gcd;
+    return self ? self->gcd : 0;
 }
 
 //  --------------------------------------------------------------------------
@@ -163,7 +160,9 @@ uint32_t cmsteps_gcd(cmsteps_t* self)
 
 int cmsteps_put(cmsteps_t* self, const char* step)
 {
-    assert(self);
+    if (!self) {
+        return -1;
+    }
 
     int64_t r = s_step_toint(step);
     if (r == -1) {
@@ -185,8 +184,7 @@ int cmsteps_put(cmsteps_t* self, const char* step)
 
 int64_t cmsteps_get(cmsteps_t* self, const char* step)
 {
-    assert(self);
-    if (!(step && (*step))) {
+    if (!(self && step && (*step))) {
         return -1;
     }
 
@@ -199,8 +197,7 @@ int64_t cmsteps_get(cmsteps_t* self, const char* step)
 
 uint32_t* cmsteps_first(cmsteps_t* self)
 {
-    assert(self);
-    return reinterpret_cast<uint32_t*>(zhashx_first(self->steps));
+    return self ? reinterpret_cast<uint32_t*>(zhashx_first(self->steps)) : NULL;
 }
 
 //  --------------------------------------------------------------------------
@@ -208,8 +205,7 @@ uint32_t* cmsteps_first(cmsteps_t* self)
 
 uint32_t* cmsteps_next(cmsteps_t* self)
 {
-    assert(self);
-    return reinterpret_cast<uint32_t*>(zhashx_next(self->steps));
+    return self ? reinterpret_cast<uint32_t*>(zhashx_next(self->steps)) : NULL;
 }
 
 //  --------------------------------------------------------------------------
@@ -217,6 +213,5 @@ uint32_t* cmsteps_next(cmsteps_t* self)
 
 const void* cmsteps_cursor(cmsteps_t* self)
 {
-    assert(self);
-    return zhashx_cursor(self->steps);
+    return self ? zhashx_cursor(self->steps) : NULL;
 }
