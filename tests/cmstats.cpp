@@ -3,7 +3,7 @@
 #include <catch2/catch.hpp>
 #include <unistd.h>
 
-TEST_CASE("cmstats test", "[cmstats]")
+TEST_CASE("cmstats", "[cmstats]")
 {
     static const char* file = "cmstats.zpl";
     unlink(file);
@@ -13,11 +13,13 @@ TEST_CASE("cmstats test", "[cmstats]")
 
     cmstats_print(self);
     cmstats_delete_asset(self, "SOMESTRING");
-    // TODO uncomment, when tests for this function would be supported
-    // cmstats_poll (self, client);
+
     cmstats_save(self, "itshouldbeemptyfile");
     cmstats_destroy(&self);
+    REQUIRE(!self);
+
     self = cmstats_new();
+    REQUIRE(self);
     // XXX: the test is sensitive on timing!!!
     //     so it must start at the beggining of the second
     //     other option is to not test in second precision,
@@ -28,12 +30,12 @@ TEST_CASE("cmstats test", "[cmstats]")
         int64_t sl     = 10000 - (now_ms % 10000);
         zclock_sleep(int(sl));
     }
+
     zclock_sleep(1000);
 
     // 1. min test
     //  1.1 first metric in
-    zmsg_t* msg =
-        fty_proto_encode_metric(nullptr, uint64_t(time(nullptr)), 10, "TYPE", "ELEMENT_SRC", "100.989999", "UNIT");
+    zmsg_t* msg = fty_proto_encode_metric(nullptr, uint64_t(time(nullptr)), 10, "TYPE", "ELEMENT_SRC", "100.989999", "UNIT");
     fty_proto_t* bmsg  = fty_proto_decode(&msg);
     fty_proto_t* stats = nullptr;
     fty_proto_print(bmsg);
@@ -49,12 +51,14 @@ TEST_CASE("cmstats test", "[cmstats]")
     fty_proto_destroy(&bmsg);
 
     zclock_sleep(2000);
+
     //  1.2 second metric (inside interval) in
     msg  = fty_proto_encode_metric(nullptr, uint64_t(time(nullptr)), 10, "TYPE", "ELEMENT_SRC", "42.11", "UNIT");
     bmsg = fty_proto_decode(&msg);
     fty_proto_print(bmsg);
 
     zclock_sleep(4000);
+
     stats = cmstats_put(self, "min", "10s", 10, bmsg);
     CHECK(!stats);
     stats = cmstats_put(self, "max", "10s", 10, bmsg);
@@ -68,8 +72,7 @@ TEST_CASE("cmstats test", "[cmstats]")
     zclock_sleep(6100);
 
     //  1.3 third metric (outside interval) in
-    msg =
-        fty_proto_encode_metric(nullptr, uint64_t(time(nullptr)), 10, "TYPE", "ELEMENT_SRC", "42.889999999999", "UNIT");
+    msg = fty_proto_encode_metric(nullptr, uint64_t(time(nullptr)), 10, "TYPE", "ELEMENT_SRC", "42.889999999999", "UNIT");
     bmsg = fty_proto_decode(&msg);
     fty_proto_print(bmsg);
 
@@ -96,8 +99,8 @@ TEST_CASE("cmstats test", "[cmstats]")
     REQUIRE(stats);
 
     char* xxx = nullptr;
-    int   r   = asprintf(&xxx, "%.2f", (100.99 + 42.1) / 2);
-    REQUIRE(r != -1); // make gcc @ rhel happy
+    asprintf(&xxx, "%.2f", (100.99 + 42.1) / 2);
+    CHECK(xxx);
     CHECK(streq(fty_proto_value(stats), xxx));
     zstr_free(&xxx);
     CHECK(streq(fty_proto_aux_string(stats, AGENT_CM_COUNT, nullptr), "2"));
@@ -107,9 +110,9 @@ TEST_CASE("cmstats test", "[cmstats]")
     stats = cmstats_put(self, "consumption", "10s", 10, bmsg);
     REQUIRE(stats);
 
-    r = asprintf(&xxx, "%.1f", 100.99 * 6 + 42.1 * 3);
+    asprintf(&xxx, "%.1f", 100.99 * 6 + 42.1 * 3);
     //printf("---> %s <> %s\n", fty_proto_value(stats), xxx);
-    REQUIRE(r != -1); // make gcc @ rhel happy
+    CHECK(xxx);
     CHECK(streq(fty_proto_value(stats), xxx));
     zstr_free(&xxx);
     CHECK(streq(fty_proto_aux_string(stats, AGENT_CM_COUNT, nullptr), "2"));
@@ -119,20 +122,22 @@ TEST_CASE("cmstats test", "[cmstats]")
 
     cmstats_save(self, "cmstats.zpl");
     cmstats_destroy(&self);
-    self = cmstats_load("cmstats.zpl");
 
-    // TRIVIA: extend the testing of self->stats
-    //         hint is - uncomment the print :)
+    self = cmstats_load("cmstats.zpl");
     // cmstats_print (self);
-    CHECK(zhashx_lookup(self->stats, "TYPE_min_10s@ELEMENT_SRC"));
-    CHECK(zhashx_lookup(self->stats, "TYPE_max_10s@ELEMENT_SRC"));
-    CHECK(zhashx_lookup(self->stats, "TYPE_consumption_10s@ELEMENT_SRC"));
+
+    CHECK(cmstats_exist(self, "TYPE_min_10s@ELEMENT_SRC"));
+    CHECK(cmstats_exist(self, "TYPE_max_10s@ELEMENT_SRC"));
+    CHECK(cmstats_exist(self, "TYPE_consumption_10s@ELEMENT_SRC"));
 
     cmstats_delete_asset(self, "ELEMENT_SRC");
-    CHECK(!zhashx_lookup(self->stats, "TYPE_min_10s@ELEMENT_SRC"));
-    CHECK(!zhashx_lookup(self->stats, "TYPE_max_10s@ELEMENT_SRC"));
-    CHECK(!zhashx_lookup(self->stats, "TYPE_consumption_10s@ELEMENT_SRC"));
+
+    CHECK(!cmstats_exist(self, "TYPE_min_10s@ELEMENT_SRC"));
+    CHECK(!cmstats_exist(self, "TYPE_max_10s@ELEMENT_SRC"));
+    CHECK(!cmstats_exist(self, "TYPE_consumption_10s@ELEMENT_SRC"));
 
     cmstats_destroy(&self);
+    REQUIRE(!self);
+
     unlink(file);
 }

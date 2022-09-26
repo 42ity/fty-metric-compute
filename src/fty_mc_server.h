@@ -22,12 +22,5 @@
 #pragma once
 #include <czmq.h>
 
-//  Add your own public definitions here, if you need them
-#define AGENT_CM_COUNT  "x-cm-count"    // how many measurements are there
-#define AGENT_CM_SUM    "x-cm-sum"      // sum of the values
-#define AGENT_CM_TYPE   "x-cm-type"     // type of computation (min/max/...)
-#define AGENT_CM_STEP   "x-cm-step"     // computation step (in seconds)
-#define AGENT_CM_LASTTS "x-cm-last-ts"  // timestamp of last metric
-
 //  fty_mc_server actor
 void fty_mc_server (zsock_t *pipe, void *args);

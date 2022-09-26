@@ -23,19 +23,25 @@
 
 #include "cmstats.h"
 #include "fty_mc_server.h"
-#include <cmath>
 #include <fty_log.h>
 #include <fty_proto.h>
 #include <fty_shm.h>
+#include <cmath>
 #include <ctime>
 
-typedef void(compute_fn)(const fty_proto_t* bmsg, fty_proto_t* stat_msg);
+//  Structure of our class
+struct _cmstats_t
+{
+    zhashx_t* stats; // a hash map of computed FTY_PROTO metrics ready to be published
+};
 
+// zhashx_t item destructor (czmq_destructor)
 static void s_proto_destructor(void** self_p)
 {
     fty_proto_destroy(reinterpret_cast<fty_proto_t**>(self_p));
 }
 
+// zhashx_t item duplicator (czmq_duplicator)
 static void* s_proto_duplicator(const void* self)
 {
     return fty_proto_dup(const_cast<fty_proto_t*>(reinterpret_cast<const fty_proto_t*>(self)));
@@ -115,14 +121,13 @@ static bool s_arithmetic_mean(const fty_proto_t* bmsg, fty_proto_t* stat_msg)
 }
 
 // transform timestamp to readable string format
-// \param tm_s - input timestamp in sec
-std::string getTimeStampStr(const uint64_t tm_s) {
-    std::string res;
+// \param tm_s - input timestamp in sec (UNIXTIME)
+static std::string s_getTimeStampStr(const uint64_t tm_s)
+{
     char buffer[32];
     std::strftime(buffer, sizeof(buffer), "%d/%m/%Y-%H:%M:%S",
         std::localtime(reinterpret_cast<const long int*>(&tm_s)));
-    res = buffer;
-    return res;
+    return std::string{buffer};
 }
 
 // compute consumption value
@@ -153,8 +158,8 @@ static bool s_consumption(const fty_proto_t* bmsg, fty_proto_t* stat_msg)
     double inc = last_metric_value * static_cast<double>(now_s - last_metric_time_s);
     if (inc > 0) consumption += inc;
     log_debug("s_consumption: update consumption %s: %.1f (inc=%.1f) %" PRIu64"(%s)-%" PRIu64"(%s) %" PRIu64,
-        fty_proto_name(const_cast<fty_proto_t*>(bmsg)), consumption, inc, now_s, getTimeStampStr(now_s).c_str(),
-        last_metric_time_s, getTimeStampStr(last_metric_time_s).c_str(), now_s - last_metric_time_s);
+        fty_proto_name(const_cast<fty_proto_t*>(bmsg)), consumption, inc, now_s, s_getTimeStampStr(now_s).c_str(),
+        last_metric_time_s, s_getTimeStampStr(last_metric_time_s).c_str(), now_s - last_metric_time_s);
     // Sample was accepted
     fty_proto_set_value(stat_msg, "%.1f", consumption);
     fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, now_s);
@@ -167,10 +172,15 @@ static bool s_consumption(const fty_proto_t* bmsg, fty_proto_t* stat_msg)
 cmstats_t* cmstats_new(void)
 {
     cmstats_t* self = reinterpret_cast<cmstats_t*>(zmalloc(sizeof(cmstats_t)));
-    assert(self);
+    if (!self) return nullptr;
+
     //  Initialize class properties here
     self->stats = zhashx_new();
-    assert(self->stats);
+    if (!self->stats) {
+        cmstats_destroy(&self);
+        return nullptr;
+    }
+
     zhashx_set_destructor(self->stats, s_proto_destructor);
     zhashx_set_duplicator(self->stats, s_proto_duplicator);
 
@@ -182,8 +192,7 @@ cmstats_t* cmstats_new(void)
 
 void cmstats_destroy(cmstats_t** self_p)
 {
-    assert(self_p);
-    if (*self_p) {
+    if (self_p && *self_p) {
         cmstats_t* self = *self_p;
         //  Free class properties here
         zhashx_destroy(&self->stats);
@@ -198,7 +207,10 @@ void cmstats_destroy(cmstats_t** self_p)
 
 void cmstats_print(cmstats_t* self)
 {
-    assert(self);
+    if (!self) return;
+
+    log_debug("cmstats (size: %zu):", zhashx_size(self->stats));
+
     for (void* it = zhashx_first(self->stats); it != nullptr; it = zhashx_next(self->stats)) {
         log_debug("%s =>", reinterpret_cast<const char*>(const_cast<void*>(zhashx_cursor(self->stats))));
         fty_proto_print(reinterpret_cast<fty_proto_t*>(it));
@@ -206,7 +218,19 @@ void cmstats_print(cmstats_t* self)
 }
 
 //  --------------------------------------------------------------------------
+//  Says if the given metric (quantity@assetName) if handled by the cmstats
+
+bool cmstats_exist(cmstats_t* self, const char* metricName)
+{
+    return (self && metricName) ? (zhashx_lookup(self->stats, metricName) != nullptr) : false;
+}
+
+//  --------------------------------------------------------------------------
 // Update statistics with "aggr_fun" and "step" for the incomming message "bmsg"
+// addr_fun: (or type), as "min", "max", ...
+// sstep: "15m", "30m", "1h", ...
+// step: corresponding time in seconds
+// bmsg: assume a fty_proto_t* METRIC
 
 fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sstep, uint32_t step, fty_proto_t* bmsg)
 {
@@ -222,41 +246,44 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
     // works well for any value of step
     uint64_t metric_time_new_s = (now_ms - (now_ms % (step * 1000))) / 1000;
 
-    std::string skey;
+    std::string skey; // aka metric name (quantity@assetname)
     {
-        char* key = NULL;
-        asprintf(&key, "%s_%s_%s@%s", fty_proto_type(bmsg), addr_fun, sstep, fty_proto_name(bmsg));
-        assert(key);
+        char key[128];
+        snprintf(key, sizeof(key), "%s_%s_%s@%s", fty_proto_type(bmsg), addr_fun, sstep, fty_proto_name(bmsg));
         skey = key;
-        zstr_free(&key);
     }
+
+    log_debug("cmstats_put: %s (now: %zu s.)", skey.c_str(), now_ms/1000);
 
     fty_proto_t* stat_msg = reinterpret_cast<fty_proto_t*>(zhashx_lookup(self->stats, skey.c_str()));
 
     // handle the first insert
     if (!stat_msg) {
         stat_msg = fty_proto_dup(bmsg);
-        fty_proto_set_type(stat_msg, "%s_%s_%s", fty_proto_type(bmsg), addr_fun, sstep);
-        fty_proto_set_time(stat_msg, metric_time_new_s);
+
+        fty_proto_set_type(stat_msg, "%s_%s_%s", fty_proto_type(bmsg), addr_fun, sstep); // quantity
+        fty_proto_set_time(stat_msg, metric_time_new_s); // start time
+        fty_proto_set_ttl(stat_msg, 2 * step);
+
         fty_proto_aux_insert(stat_msg, AGENT_CM_COUNT, "1");
-        fty_proto_aux_insert(
-            stat_msg, AGENT_CM_SUM, "%s", fty_proto_value(stat_msg)); // insert value as string into string
+        fty_proto_aux_insert(stat_msg, AGENT_CM_SUM, "%s", fty_proto_value(stat_msg)); // insert value as string into string
         fty_proto_aux_insert(stat_msg, AGENT_CM_TYPE, "%s", addr_fun);
         fty_proto_aux_insert(stat_msg, AGENT_CM_STEP, "%" PRIu32, step);
         fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, fty_proto_time(bmsg));
-        fty_proto_set_ttl(stat_msg, 2 * step);
 
         // Power consumption treatment
         if (streq(addr_fun, "consumption")) {
-            double consumption = 0.0;
-            fty_proto_set_value(stat_msg, "%.1f", consumption);
+            fty_proto_set_value(stat_msg, "%.1f", 0.0);
+
             fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, now_ms/1000);
-            fty_proto_set_unit(stat_msg, "Ws");
+            fty_proto_set_unit(stat_msg, "Ws"); // Watt Second
+
             log_debug("cmstats_put: Add new %s - %" PRIu64 "(%s)", skey.c_str(), now_ms/1000,
-                getTimeStampStr(now_ms/1000).c_str());
+                s_getTimeStampStr(now_ms/1000).c_str());
         }
 
-        zhashx_insert(self->stats, skey.c_str(), stat_msg);
+        zhashx_insert(self->stats, skey.c_str(), stat_msg); // stat_msg duplicated
+
         fty_proto_destroy(&stat_msg);
         return nullptr;
     }
@@ -266,9 +293,10 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
     uint64_t metric_time_s      = fty_proto_time(stat_msg);
     uint64_t new_metric_time_s  = fty_proto_time(bmsg);
     uint64_t last_metric_time_s = fty_proto_aux_number(stat_msg, AGENT_CM_LASTTS, 0);
+
     if (new_metric_time_s <= last_metric_time_s) {
-        //log_debug("cmstats_put: Message date too earlier for %s: %" PRIu64 "(%s)", skey.c_str(),
-        //    last_metric_time_s, getTimeStampStr(last_metric_time_s).c_str());
+        log_debug("cmstats_put: Message date too earlier for %s: %" PRIu64 "(%s)", skey.c_str(),
+            last_metric_time_s, s_getTimeStampStr(last_metric_time_s).c_str());
         return nullptr;
     }
 
@@ -282,7 +310,7 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
         fty_proto_set_time(stat_msg, metric_time_new_s);
         fty_proto_aux_insert(stat_msg, AGENT_CM_COUNT, "1");
 
-        // If it is NOT power consumption data
+        // If it is NOT power consumption data (min, max, arithmetic_mean, ...)
         if (!streq(addr_fun, "consumption")) {
             fty_proto_aux_insert(stat_msg, AGENT_CM_SUM, "%s", fty_proto_value(bmsg));
             fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, new_metric_time_s);
@@ -304,11 +332,12 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
                 // Compute last value missing for the returned interval
                 double consumption = atof(fty_proto_value(stat_msg));
                 double inc = last_metric_value * static_cast<double>(delta);
-                log_debug("cmstats_put: End consumption for %s: inc=%.1f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, skey.c_str(), inc,
-                    metric_time_new_s, getTimeStampStr(metric_time_new_s).c_str(), last_metric_time_s, getTimeStampStr(last_metric_time_s).c_str(),
-                    metric_time_new_s - last_metric_time_s);
                 consumption += inc;
                 fty_proto_set_value(ret, "%.1f", consumption);
+
+                log_debug("cmstats_put: End consumption for %s: inc=%.1f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, skey.c_str(), inc,
+                    metric_time_new_s, s_getTimeStampStr(metric_time_new_s).c_str(), last_metric_time_s, s_getTimeStampStr(last_metric_time_s).c_str(),
+                    metric_time_new_s - last_metric_time_s);
 
                 // and compute the first value for the new interval
                 double value = atof(fty_proto_value(bmsg));
@@ -317,29 +346,35 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
                 fty_proto_set_value(stat_msg, "%.1f", consumption);
                 fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, now_ms/1000);
                 fty_proto_aux_insert(stat_msg, AGENT_CM_COUNT, "1");
+
                 log_debug("cmstats_put: Update new consumption for %s: %.1f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, skey.c_str(), consumption,
-                    now_ms/1000, getTimeStampStr(now_ms/1000).c_str(), metric_time_new_s, getTimeStampStr(metric_time_new_s).c_str(),
+                    now_ms/1000, s_getTimeStampStr(now_ms/1000).c_str(), metric_time_new_s, s_getTimeStampStr(metric_time_new_s).c_str(),
                     now_ms/1000 - metric_time_new_s);
 
             }
         }
-        return ret;
+
+        return ret; // metric ready for publication)
     }
 
-    bool value_accepted = false;
+    log_debug("cmstats_put: Update %s", skey.c_str());
+
     // if we're inside the interval, simply do the computation
-    if (streq(addr_fun, "min"))
+    bool value_accepted = false;
+    if (streq(addr_fun, "min")) {
         value_accepted = s_min(bmsg, stat_msg);
-    else if (streq(addr_fun, "max"))
+    }
+    else if (streq(addr_fun, "max")) {
         value_accepted = s_max(bmsg, stat_msg);
-    else if (streq(addr_fun, "arithmetic_mean"))
+    }
+    else if (streq(addr_fun, "arithmetic_mean")) {
         value_accepted = s_arithmetic_mean(bmsg, stat_msg);
+    }
     else if (streq(addr_fun, "consumption")) {
-        log_debug("cmstats_put: Update consumption for %s", skey.c_str());
         value_accepted = s_consumption(bmsg, stat_msg);
     }
     else { // fail otherwise
-        log_error("addr_fun not handled (%s)", addr_fun);
+        log_fatal("%s: addr_fun not handled (%s)", skey.c_str(), addr_fun);
         assert(false);
     }
 
@@ -350,6 +385,7 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
             fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, new_metric_time_s);
         }
     }
+
     return nullptr;
 }
 
@@ -359,25 +395,26 @@ fty_proto_t* cmstats_put(cmstats_t* self, const char* addr_fun, const char* sste
 void cmstats_delete_asset(cmstats_t* self, const char* asset_name)
 {
     assert(self);
-    assert(asset_name);
+    if (!asset_name) return;
+
+    log_debug("cmstats_delete_asset %s", asset_name);
 
     zlist_t* keys = zlist_new();
     // no autofree here, this list constains only _references_ to keys,
     // which are owned and cleanded up by self->stats on zhashx_delete
 
-    for (fty_proto_t* stat_msg = reinterpret_cast<fty_proto_t*>(zhashx_first(self->stats));
-         stat_msg != nullptr;
-         stat_msg = reinterpret_cast<fty_proto_t*>(zhashx_next(self->stats))
-    ) {
-        const char* key = reinterpret_cast<const char*>(zhashx_cursor(self->stats));
-        if (streq(fty_proto_name(stat_msg), asset_name))
+    for (void* it = zhashx_first(self->stats); it; it = zhashx_next(self->stats))
+    {
+        fty_proto_t* stat_msg = reinterpret_cast<fty_proto_t*>(it);
+        if (streq(fty_proto_name(stat_msg), asset_name)) {
+            const char* key = reinterpret_cast<const char*>(zhashx_cursor(self->stats));
             zlist_append(keys, const_cast<char*>(key));
+        }
     }
 
-    for (const char* key = reinterpret_cast<const char*>(zlist_first(keys));
-         key != nullptr;
-         key = reinterpret_cast<const char*>(zlist_next(keys))
-    ) {
+    for (void* it = zlist_first(keys); it; it = zlist_next(keys))
+    {
+        const char* key = reinterpret_cast<const char*>(it);
         zhashx_delete(self->stats, key);
     }
 
@@ -385,7 +422,7 @@ void cmstats_delete_asset(cmstats_t* self, const char* asset_name)
 }
 
 //  --------------------------------------------------------------------------
-//  Polling handler - publish && reset the computed values
+//  Polling handler - publish & reset the computed values
 
 void cmstats_poll(cmstats_t* self)
 {
@@ -394,16 +431,16 @@ void cmstats_poll(cmstats_t* self)
     // What is it time now? [ms]
     uint64_t now_ms = uint64_t(zclock_time());
 
-    for (fty_proto_t* stat_msg = reinterpret_cast<fty_proto_t*>(zhashx_first(self->stats));
-         stat_msg != nullptr;
-         stat_msg = reinterpret_cast<fty_proto_t*>(zhashx_next(self->stats))
-    ) {
+    for (void* it = zhashx_first(self->stats); it; it = zhashx_next(self->stats))
+    {
+        fty_proto_t* stat_msg = reinterpret_cast<fty_proto_t*>(it);
+
         // take a key, actually it is the future subject of the message
         const char* key = reinterpret_cast<const char*>(zhashx_cursor(self->stats));
 
         // What is an assigned time for the metric ( in our case it is a left margin in the interval)
         uint64_t metric_time_s = fty_proto_time(stat_msg);
-        uint64_t step          = fty_proto_aux_number(stat_msg, AGENT_CM_STEP, 0);
+        uint64_t step          = fty_proto_aux_number(stat_msg, AGENT_CM_STEP, 0); //sec
         // What SHOULD be an assigned time for the NEW stat metric (in our case it is a left margin in the NEW interval)
         uint64_t metric_time_new_s = (now_ms - (now_ms % (step * 1000))) / 1000;
 
@@ -411,14 +448,16 @@ void cmstats_poll(cmstats_t* self)
                   ", (now_ms - (metric_time_s * 1000))=%" PRIu64 "s, step*1000=%" PRIu32 "ms",
             key, now_ms, metric_time_new_s, metric_time_s, (now_ms - metric_time_s * 1000), step * 1000);
 
-        // Should this metic be published and computation restarted?
+        // Should this metric be published and computation restarted?
         if ((now_ms - (metric_time_s * 1000)) >= (step * 1000)) {
             // Yes, it should!
-            fty_proto_t* ret = fty_proto_dup(stat_msg);
-            log_debug("cmstats:\tPublishing message wiht subject=%s", key);
+            log_debug("cmstats_poll: metric complete (%s)", key);
 
-            // If consumption data, compute last value missing for the end of interval
-            if (streq(fty_proto_aux_string(stat_msg, AGENT_CM_TYPE, ""), "consumption")) {
+            fty_proto_t* ret = fty_proto_dup(stat_msg);
+
+            // If consumption data, compute/add last value missing for the end of interval
+            if (streq(fty_proto_aux_string(stat_msg, AGENT_CM_TYPE, ""), "consumption"))
+            {
                 uint64_t last_metric_time_s = fty_proto_aux_number(stat_msg, AGENT_CM_LASTTS, 0);
                 // If we have receive a least one power measure
                 if (last_metric_time_s != 0) {
@@ -435,8 +474,9 @@ void cmstats_poll(cmstats_t* self)
                     double inc = last_metric_value * static_cast<double>(delta);
                     consumption += inc;
                     fty_proto_set_value(ret, "%.1f", consumption);
+
                     log_debug("cmstats_poll: End consumption for %s: new=%.1f inc=%.1f %" PRIu64"(%s)-%" PRIu64 "(%s) %" PRIu64, key, consumption, inc,
-                        metric_time_new_s, getTimeStampStr(metric_time_new_s).c_str(), last_metric_time_s, getTimeStampStr(last_metric_time_s).c_str(),
+                        metric_time_new_s, s_getTimeStampStr(metric_time_new_s).c_str(), last_metric_time_s, s_getTimeStampStr(last_metric_time_s).c_str(),
                         metric_time_new_s - last_metric_time_s);
 
                     // and compute the first value for the new interval
@@ -444,8 +484,9 @@ void cmstats_poll(cmstats_t* self)
                     if (consumption < 0) consumption = 0;
                     fty_proto_set_value(stat_msg, "%.1f", consumption);
                     fty_proto_aux_insert(stat_msg, AGENT_CM_LASTTS, "%" PRIu64, now_ms/1000);
+
                     log_debug("cmstats_poll: Update new consumption for %s: %.1f %" PRIu64 "(%s)-%" PRIu64 "(%s) %" PRIu64, key, consumption,
-                        now_ms/1000, getTimeStampStr(now_ms/1000).c_str(), metric_time_new_s, getTimeStampStr(metric_time_new_s).c_str(),
+                        now_ms/1000, s_getTimeStampStr(now_ms/1000).c_str(), metric_time_new_s, s_getTimeStampStr(metric_time_new_s).c_str(),
                         now_ms/1000 - metric_time_new_s);
                 }
             }
@@ -454,18 +495,22 @@ void cmstats_poll(cmstats_t* self)
                 fty_proto_aux_insert(stat_msg, AGENT_CM_SUM, "0");
                 fty_proto_set_value(stat_msg, "0");
             }
+
             fty_proto_set_time(stat_msg, metric_time_new_s);
             fty_proto_aux_insert(stat_msg, AGENT_CM_COUNT, "0");
+
             fty_proto_print(ret);
-            // Test if receive some data before publishing
+
+            // publish only consistent computed metric
             if (fty_proto_aux_number(ret, AGENT_CM_COUNT, 0) != 0) {
+                log_debug("cmstats_poll: publish metric %s", key);
                 int r = fty::shm::write_metric(ret);
                 if (r == -1) {
-                    log_error("cmstats:\tCannot publish statistics");
+                    log_error("cmstats_poll: publish metric failed (%s)", key);
                 }
             }
             else {
-              log_info("No metrics for this step, do not publish");
+                log_info("cmstats_poll: No metrics for this step, do not publish (%s)", key);
             }
             fty_proto_destroy(&ret);
         }
@@ -473,25 +518,24 @@ void cmstats_poll(cmstats_t* self)
 }
 
 //  --------------------------------------------------------------------------
-//  Save the cmstats to filename, return -1 if fail
+//  Save the cmstats to filename
+//  returns 0 if success, else <0
 
 int cmstats_save(cmstats_t* self, const char* filename)
 {
-    assert(self);
+    if (!self) return -1;
 
     zconfig_t* root = zconfig_new("cmstats", nullptr);
-    int        i    = 1;
-    for (fty_proto_t* bmsg = reinterpret_cast<fty_proto_t*>(zhashx_first(self->stats));
-         bmsg != nullptr;
-         bmsg = reinterpret_cast<fty_proto_t*>(zhashx_next(self->stats))
-    ) {
+    size_t index = 1; // offset 1
+    for (void* it = zhashx_first(self->stats); it; it = zhashx_next(self->stats), index++)
+    {
+        fty_proto_t* bmsg = reinterpret_cast<fty_proto_t*>(it);
+        const char* metric_topic = reinterpret_cast<const char*>(zhashx_cursor(self->stats));
+
         // ZCONFIG doesn't allow spaces in keys! -> metric topic cannot be key
         // because it has an asset name inside!
-        char* asset_key = nullptr;
-        int   r         = asprintf(&asset_key, "%d", i);
-        assert(r != -1); // make gcc @ rhel happy
-        i++;
-        const char* metric_topic = reinterpret_cast<const char*>(zhashx_cursor(self->stats));
+        char asset_key[16];
+        snprintf(asset_key, sizeof(asset_key), "%zu", index);
 
         zconfig_t* item = zconfig_new(asset_key, root);
         zconfig_put(item, "metric_topic", metric_topic);
@@ -502,25 +546,21 @@ int cmstats_save(cmstats_t* self, const char* filename)
         zconfig_putf(item, "ttl", "%" PRIu32, fty_proto_ttl(bmsg));
 
         zhash_t* aux = fty_proto_aux(bmsg);
-        for (const char* aux_value = reinterpret_cast<const char*>(zhash_first(aux));
-             aux_value != nullptr;
-             aux_value = reinterpret_cast<const char*>(zhash_next(aux))
-        ) {
+        for (void* it_aux = zhash_first(aux); it_aux; it_aux = zhash_next(aux))
+        {
+            const char* aux_value = reinterpret_cast<const char*>(it_aux);
             const char* aux_key = zhash_cursor(aux);
-            char*       item_key;
 
-            [[maybe_unused]] int r1 = asprintf(&item_key, "aux.%s", aux_key);
-            assert(r1 != -1); // make gcc @ rhel happy
-
+            char* item_key = nullptr;
+            asprintf(&item_key, "aux.%s", aux_key);
             zconfig_put(item, item_key, aux_value);
             zstr_free(&item_key);
         }
-        zstr_free(&asset_key);
     }
 
     int r = zconfig_save(root, filename);
     zconfig_destroy(&root);
-    return r;
+    return (r == 0) ? 0 : -2;
 }
 
 //  --------------------------------------------------------------------------
@@ -529,15 +569,16 @@ int cmstats_save(cmstats_t* self, const char* filename)
 cmstats_t* cmstats_load(const char* filename)
 {
     zconfig_t* root = zconfig_load(filename);
-
-    if (!root)
+    if (!root) {
         return nullptr;
+    }
 
     cmstats_t* self = cmstats_new();
     if (!self) {
         zconfig_destroy(&root);
         return nullptr;
     }
+
     zconfig_t* key_config = zconfig_child(root);
     for (; key_config != nullptr; key_config = zconfig_next(key_config)) {
         // 1. create bmsg
@@ -561,10 +602,9 @@ cmstats_t* cmstats_load(const char* filename)
         zconfig_t* bmsg_config = zconfig_child(key_config);
         for (; bmsg_config != nullptr; bmsg_config = zconfig_next(bmsg_config)) {
             const char* bmsg_key = zconfig_name(bmsg_config);
-            if (strncmp(bmsg_key, "aux.", 4) != 0)
-                continue;
-
-            fty_proto_aux_insert(bmsg, (bmsg_key + 4), "%s", zconfig_value(bmsg_config));
+            if (strncmp(bmsg_key, "aux.", 4) == 0) { // aux.* only
+                fty_proto_aux_insert(bmsg, (bmsg_key + 4), "%s", zconfig_value(bmsg_config));
+            }
         }
 
         value = atof(fty_proto_aux_string(bmsg, AGENT_CM_SUM, "0"));
